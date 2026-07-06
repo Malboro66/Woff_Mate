@@ -5,9 +5,6 @@ Tabelas de Mapeamento (maps.py)
 Contém todas as tabelas de tradução, dicionários e expressões 
 regulares estáticas usadas para normalizar os dados extraídos 
 dos ficheiros do WoFF BHaH II.
-
-Manter estes dados isolados facilita a atualização de traduções 
-ou a adaptação a novas versões do jogo sem alterar a lógica do código.
 ══════════════════════════════════════════════════════════════════
 """
 
