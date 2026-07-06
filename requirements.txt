@@ -1,0 +1,4 @@
+# WoFF BHaH II Watchdog — dependências
+# Instala com:  pip install -r requirements.txt
+
+watchdog>=3.0.0

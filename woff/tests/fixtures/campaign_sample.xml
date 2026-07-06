@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Campaign>
+  <Pilot>
+    <PilotName>Wilhelm Ritter</PilotName>
+    <Nation>German</Nation>
+    <Rank>Hauptmann</Rank>
+    <Squadron>Jasta 11</Squadron>
+    <Aircraft>Albatros D.III</Aircraft>
+    <Aerodrome>La Brayelle</Aerodrome>
+    <Sector>Arras</Sector>
+    <StartDate>1916-09-01</StartDate>
+    <Status>In Hospital</Status>
+    <WoundSeverity>Serious</WoundSeverity>
+    <Notes>Transferred from Jasta 2 after wounding in Bloody April.</Notes>
+  </Pilot>
+
+  <Missions>
+    <Mission>
+      <Date>1917-04-06</Date>
+      <Type>Offensive Patrol</Type>
+      <Aircraft>Albatros D.III</Aircraft>
+      <Duration>1.5</Duration>
+      <Altitude>4000</Altitude>
+      <Sector>Arras</Sector>
+      <Weather>Clear</Weather>
+      <EnemyContacts>5</EnemyContacts>
+      <Claims>2</Claims>
+      <Result>Major Engagement</Result>
+      <Damage>0</Damage>
+      <Wounds>0</Wounds>
+      <Notes>Engaged large formation of RFC scouts. Two confirmed victories.</Notes>
+    </Mission>
+    <Mission>
+      <Date>10.04.1917</Date>
+      <Type>Artillery Observation</Type>
+      <Aircraft>Albatros D.III</Aircraft>
+      <Duration>2.0</Duration>
+      <Altitude>2500</Altitude>
+      <Sector>Vimy Ridge</Sector>
+      <Weather>Overcast</Weather>
+      <EnemyContacts>1</EnemyContacts>
+      <Claims>0</Claims>
+      <Result>Aircraft Damaged (Returned)</Result>
+      <Damage>1</Damage>
+      <Wounds>1</Wounds>
+      <Notes>Hit by anti-aircraft fire over the ridge. Managed to crash-land behind friendly lines.</Notes>
+    </Mission>
+  </Missions>
+
+  <Victories>
+    <Victory>
+      <Date>April 6, 1917</Date>
+      <Time>10:35</Time>
+      <EnemyType>Sopwith Pup</EnemyType>
+      <Type>Destroyed — In Flames</Type>
+      <Location>East of Arras, coord D.5.c</Location>
+      <Confirmed>true</Confirmed>
+      <Witnesses>Manfred von Richthofen</Witnesses>
+      <Notes>Dived from above and behind. E/A caught fire and went down vertically.</Notes>
+    </Victory>
+    <Victory>
+      <Date>1917-04-06</Date>
+      <Time>10:42</Time>
+      <EnemyType>Sopwith Pup</EnemyType>
+      <Type>Out of Control</Type>
+      <Location>East of Arras, coord D.5.d</Location>
+      <Confirmed>true</Confirmed>
+      <Witnesses>Manfred von Richthofen</Witnesses>
+      <Notes>Second Pup attacked. Wing fabric peeled off, E/A went into a spin.</Notes>
+    </Victory>
+  </Victories>
+
+  <Decorations>
+    <Decoration>
+      <Name>Pour le Mérite</Name>
+      <Date>April 20, 1917</Date>
+      <Citation>Awarded for 18 confirmed victories and exceptional leadership over the Arras sector.</Citation>
+    </Decoration>
+    <Decoration>
+      <Name>Iron Cross 1st Class</Name>
+      <Date>1916-11-15</Date>
+      <Citation>For bravery in the face of the enemy.</Citation>
+    </Decoration>
+  </Decorations>
+</Campaign>
