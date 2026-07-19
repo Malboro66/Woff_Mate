@@ -1,15 +1,19 @@
 {
-    "watch_paths": [
-      "A:\\OBDSoftware\\WOFF\\campaigns",
-      "A:\\OBDSoftware\\WOFF\\OBDWW1 Over Flanders Fields\\campaigns",
-      "A:\\OBDSoftware\\WOFF\\Logs",
-      "A:\\OBDSoftware\\WOFF\\OBDWW1 Over Flanders Fields\\log"
-    ],
-    "export_path": "C:\\Users\\Public\\WoFFBase\\woff_export.json",
-    "watched_extensions": [".xml", ".txt", ".log"],
-    "stability_timeout_sec": 3.0,
-    "stability_check_interval_sec": 0.15,
-    "backup_export": true,
-    "discovery_log_path": "woff_discovery.log",
-    "log_level": "INFO"
-  }
+  "watch_paths": [
+    "A:\\OBDSoftware\\WOFF\\OBDWW1 Over Flanders Fields\\campaigns\\CampaignData\\Pilots",
+    "A:\\OBDSoftware\\WOFF\\OBDWW1 Over Flanders Fields\\Logs"
+  ],
+  "export_path": "C:\\Users\\johan\\Documents\\WoFFBase\\woff_data.db",
+  "watched_extensions": [
+    ".txt",
+    ".xml",
+    ".log"
+  ],
+  "stability_timeout_sec": 3.0,
+  "stability_check_interval_sec": 0.15,
+  "backup_export": true,
+  "discovery_log_path": "woff_discovery.log",
+  "log_level": "INFO",
+  "max_workers": 4,
+  "export_schema_version": "1.8"
+}

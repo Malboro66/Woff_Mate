@@ -20,8 +20,8 @@ from datetime import datetime
 from typing import Optional, List, Dict
 
 # Importar modelos de dados e funções de normalização (assumindo que estão na raiz do projeto)
-from woff.models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration
-from woff.normalization import (
+from models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration
+from normalization import (
     normalize_nation,
     normalize_mission_type,
     normalize_status,
@@ -124,20 +124,28 @@ class WoFFXMLParser:
         return False
 
     def _parse_pilot(self, root: ET.Element, path: str):
-        """Extrai a informação principal do piloto."""
         p = WoFFPilot()
         p.source_file  = os.path.basename(path)
         p.last_updated = datetime.now().isoformat()
 
-        p.name = (
+        # Corrigido: Removido o fallback do nome do ficheiro para evitar pilotos falsos
+        found_name = (
             self._find(root, "PilotName","Name","FullName","pilot_name","NomPilote","Pilotname") or
-            self._find_attr(root, "name", "Pilot","pilot") or
-            os.path.splitext(os.path.basename(path))[0]
+            self._find_attr(root, "name", "Pilot","pilot")
         )
+        
+        # Se não encontrámos uma tag explícita de nome de piloto, abortamos o parse deste XML
+        if not found_name:
+            return
+            
+        p.name = found_name
+        
+        # Corrigido: Removido "Title" da lista de rank (Title é o título da missão)
+        p.rank      = self._find(root, "Rank","CurrentRank","Grade","rank") or ""
+        
         p.nation    = normalize_nation(
             self._find(root, "Nation","Country","Side","Service","Pays","nation") or ""
         )
-        p.rank      = self._find(root, "Rank","CurrentRank","Grade","rank","Title") or ""
         p.squadron  = self._find(root, "Squadron","Unit","SquadronNumber","Sqd","Escadrille") or ""
         p.aircraft  = self._find(root, "Aircraft","Plane","CurrentAircraft","AircraftType","Avion") or ""
         p.aerodrome = self._find(root, "Aerodrome","Base","Field","HomeBase","Terrain","airfield") or ""
@@ -149,8 +157,7 @@ class WoFFXMLParser:
         p.status    = normalize_status(raw_status, root)
         p.notes     = self._find(root, "Notes","Biography","History","Background","Historique") or ""
 
-        if p.name:
-            self.pilot = p
+        self.pilot = p
 
     def _parse_missions(self, root: ET.Element):
         """Procura e extrai todas as missões voadas."""

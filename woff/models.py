@@ -104,3 +104,45 @@ class WoFFExport:
     decorations: List[dict] = field(default_factory=list)
     diary:       List[dict] = field(default_factory=list)
     meta:        dict       = field(default_factory=dict)
+
+
+@dataclass
+class WoFFWingman:
+    """Representa um membro de esquadrão (AI) extraído do Dossier."""
+    id:          str = field(default_factory=_uid)  # <--- ADICIONAR ESTA LINHA
+    pilotId:     str = ""
+    rank:        str = ""
+    fName:       str = ""
+    sName:       str = ""
+    skill:       str = "0"
+    morale:      str = "0"
+    status:      str = "Active"
+    missions:    str = "0"
+    flminutes:   str = "0"
+    bio:         str = ""
+
+@dataclass
+class WoFFSquadron:
+    """Representa um esquadrão existente no jogo."""
+    id: str = ""             # Nome do ficheiro (ex: "Esc 15")
+    name: str = ""           # Nome completo extraído
+    raw_data: str = ""       # Dados decifrados em Hex para referência futura
+    source_file: str = ""
+
+@dataclass
+class WoFFPilot:
+    """Representa os dados de um piloto na campanha."""
+    id:           str = field(default_factory=_uid)
+    name:         str = ""
+    nation:       str = ""
+    rank:         str = ""
+    squadron:     str = ""
+    aircraft:     str = ""
+    aerodrome:    str = ""
+    sector:       str = ""
+    startDate:    str = ""
+    status:       str = "Active"
+    notes:        str = ""
+    photo:        str = ""  # <--- ADICIONAR ESTA LINHA (ID da foto)
+    source_file:  str = ""
+    last_updated: str = ""    

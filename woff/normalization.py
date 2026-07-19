@@ -108,3 +108,45 @@ def normalize_date(raw: str) -> str:
                 
     log.debug(f"Data não reconhecida para normalização: '{raw}'")
     return raw
+
+# ──────────────────────────────────────────────────────────────
+# CONVERSÃO DE COORDENADAS (Para mapas na Fase 3)
+# ──────────────────────────────────────────────────────────────
+
+def normalize_coordinates(raw: str) -> Optional[float]:
+    """
+    Converte o formato de coordenadas do WoFF (ex: N50*23'34.6102") 
+    para graus decimais (ex: 50.3928339), ideal para APIs de mapas.
+    Suporta N, S, E, W.
+    """
+    if not raw:
+        return None
+        
+    raw = raw.strip().upper()
+    
+    # Regex para extrair Direção, Graus, Minutos e Segundos
+    # Exemplo de match: N50*23'34.6102" ou E2*36'50.609
+    match = re.match(r"^([NSEW])(\d{1,3})\*(\d{1,2})'(\d{1,2}(?:\.\d+)?)[\"\u201d]?$", raw)
+    if not match:
+        log.debug(f"Coordenada não reconhecida: '{raw}'")
+        return None
+        
+    direction, deg_str, min_str, sec_str = match.groups()
+    
+    try:
+        degrees = float(deg_str)
+        minutes = float(min_str)
+        seconds = float(sec_str)
+        
+        # Fórmula de conversão DMS para Decimal
+        decimal_degrees = degrees + (minutes / 60.0) + (seconds / 3600.0)
+        
+        # Sul e Oeste são negativos
+        if direction in ('S', 'W'):
+            decimal_degrees *= -1
+            
+        return round(decimal_degrees, 6) # Precisão de 6 casas é suficiente para mapas
+        
+    except ValueError as e:
+        log.warning(f"Erro ao converter coordenada '{raw}': {e}")
+        return None
