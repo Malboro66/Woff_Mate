@@ -116,34 +116,11 @@ class WoFFDossierParser:
             def safe_get(idx):
                 return player_data[idx] if len(player_data) > idx and player_data[idx] else ""
             
+            # Índices fixos para estatísticas (confirmados no Java)
             self.pilot.fName = safe_get(4)
             self.pilot.sName = safe_get(5)
             self.pilot.name = f"{self.pilot.fName} {self.pilot.sName}".strip()
             self.pilot.rank = safe_get(3)
-            
-            # Mapeamento Dinâmico para garantir que os campos não falham
-            for s in player_data:
-                s_clean = s.strip()
-                if not s_clean:
-                    continue
-                    
-                # Nação
-                if s_clean in ("France", "Britain", "Germany", "USA", "Belgium"):
-                    self.pilot.nation = s_clean
-                    
-                # Status
-                if s_clean in ("In Service", "Wounded", "KIA", "Leave", "Prisoner", "Dead", "Retired"):
-                    self.pilot.status = s_clean
-                    
-                # Data de Nascimento
-                if "/" in s_clean and len(s_clean) == 10 and s_clean[2] == "/" and s_clean[5] == "/":
-                    self.pilot.birthDate = s_clean
-                    
-                # Biografia Narrativa
-                if "joined" in s_clean.lower() or "enlisted" in s_clean.lower():
-                    self.pilot.notes = s_clean
-
-            # Índices fixos para estatísticas (confirmados no Java)
             self.pilot.squadron = safe_get(83)
             self.pilot.aircraft = safe_get(84)
             self.pilot.aerodrome = safe_get(88)
@@ -155,6 +132,32 @@ class WoFFDossierParser:
             self.pilot.skill = safe_get(41) if safe_get(41) else "0"
             self.pilot.reputation = safe_get(52) if safe_get(52) else "0"
             self.pilot.birthPlace = safe_get(92)
+            
+            photo_id = safe_get(100)
+            if photo_id and photo_id.isdigit(): self.pilot.photo = photo_id
+            
+            d, m, y = safe_get(6), safe_get(7), safe_get(8)
+            if d and m and y: self.pilot.startDate = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+            d, m, y = safe_get(12), safe_get(13), safe_get(14)
+            if d and m and y: self.pilot.enlisted = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+
+            # FIX: Heurísticas com 'continue' e 'break' para não capturar o valor errado
+            for s in player_data:
+                s_clean = s.strip()
+                if not s_clean: continue
+                
+                if not self.pilot.nation and s_clean in ("France", "Britain", "Germany", "USA", "Belgium"):
+                    self.pilot.nation = s_clean
+                    continue
+                if not self.pilot.status and s_clean in ("In Service", "Wounded", "KIA", "Leave", "Prisoner", "Dead", "Retired"):
+                    self.pilot.status = s_clean
+                    continue
+                if not self.pilot.birthDate and "/" in s_clean and len(s_clean) == 10 and s_clean[2] == "/" and s_clean[5] == "/":
+                    self.pilot.birthDate = s_clean
+                    continue
+                if not self.pilot.notes and ("joined" in s_clean.lower() or "enlisted" in s_clean.lower()):
+                    self.pilot.notes = s_clean
+                    continue
             
             # Extrair ID da Foto (Índice 100 - confirmado no código Java do Pilot Log Editor)
             photo_id = safe_get(100)

@@ -1,4 +1,5 @@
-import re
+import os
+import sys
 
 HEX_DIGITS = set(b'0123456789ABCDEF')
 
@@ -7,12 +8,11 @@ def unscramble(raw: bytes) -> bytes:
     tokens = []
     current = bytearray()
     for b in raw:
-        if b in (0x0D, 0x0A):  # Ignora quebras de linha
+        if b in (0x0D, 0x0A):
             continue
         if b in HEX_DIGITS:
             current.append(b)
         else:
-            # Byte fora do alfabeto hex = contador -> fecha o token atual
             tokens.append(bytes(current))
             current = bytearray()
     if current:
@@ -20,7 +20,6 @@ def unscramble(raw: bytes) -> bytes:
  
     decoded = bytearray()
     for t in tokens:
-        # Se o token estiver vazio (contadores consecutivos), assume 0
         decoded.append(int(t, 16) if t else 0)
     return bytes(decoded)
 
@@ -34,12 +33,23 @@ def hexdump(data: bytes, width: int = 16) -> str:
         lines.append(f'{i:06X}  {hex_part:<{width * 3}}  {ascii_part}')
     return '\n'.join(lines)
 
-# Conteudo do ficheiro Esc 15.txt que partilhou
-raw_data = b"""0\xA11D\xA2A\xA3D\xA422\xA53B\xA631\xA712\xA82D\xA91\xAA78\xAB7A\xAC7\xAD52\xAE29\xAF1B\xB036\xB126\xB221\xB31B\xB42B\xB534\xB650\xB76B\xB845\xB99\xBA5\xBB6D\xBC2D\xBD16\xBE27\xBF2F\xC08\xC130\xC224\xC31A\xC4E\xC554\xC61F\xC710\xC812\xC95A\xCAA\xCB4E\xCC51\xCD4C\xCE34\xCF13\xD08\xD111\xD270\xD360\xD466\xD54A\xD66C\xD7"""
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print("Uso: python decode_squad.py <caminho_para_o_ficheiro>")
+        print('Exemplo: python decode_squad.py "A:\\OBDSoftware\\WOFF\\...\\Scratchpad\\Esc 15.txt"')
+        sys.exit(1)
+        
+    path = sys.argv[1]
+    
+    if not os.path.exists(path):
+        print(f"[ERRO] Ficheiro não encontrado: {path}")
+        sys.exit(1)
+        
+    with open(path, 'rb') as f:
+        raw = f.read()
+        
+    data = unscramble(raw)
 
-# Decodificar
-data = unscramble(raw_data)
-
-print("\n--- FICHEIRO DESCODIFICADO (Hex Dump) ---\n")
-print(hexdump(data))
-print("\n--- FIM ---\n")
+    print(f'{path}: {len(raw)} bytes ofuscados -> {len(data)} bytes reais\n')
+    print(hexdump(data[:256]))
+    print('...\n')

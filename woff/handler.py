@@ -2,13 +2,6 @@
 """
 Módulo de Eventos e Parsers (handler.py)
 ══════════════════════════════════════════════════════════════════
-Contém a lógica de monitorização de ficheiros (watchdog), as guardas 
-de estabilidade e o roteamento para os parsers (XML, Log, TXT e Binário).
-
-Componentes:
-- FileStabilityGuard: Aguarda que o jogo termine de escrever nos ficheiros.
-- WoFFEventHandler: Recebe os eventos do sistema, filtra e envia para o DatabaseManager.
-══════════════════════════════════════════════════════════════════
 """
 
 from __future__ import annotations
@@ -22,11 +15,9 @@ from typing import Optional, List
 
 from watchdog.events import FileSystemEventHandler
 
-# Importar o DatabaseManager e o CampaignEngine (Fase 2)
 from database import DatabaseManager
 from campaign_engine import CampaignEngine
 
-# Importar os 4 Parsers
 from parsers.xml_parser import WoFFXMLParser
 from parsers.mission_log_parser import WoFFMissionLogParser
 from parsers.pilot_data_parser import WoFFPilotDataParser
@@ -34,17 +25,7 @@ from parsers.dossier_parser import WoFFDossierParser
 
 log = logging.getLogger("WoFFWatch")
 
-
-# ──────────────────────────────────────────────────────────────
-# GUARDIA DE ESTABILIDADE DO FICHEIRO
-# ──────────────────────────────────────────────────────────────
-
 class FileStabilityGuard:
-    """
-    Aguarda que o WoFF termine de escrever um ficheiro antes de fazer parse.
-    O WoFF pode disparar eventos de file system enquanto ainda está a escrever,
-    o que resulta em XML truncado ou texto incompleto.
-    """
     def __init__(self, timeout: float = 3.0, interval: float = 0.15):
         self.timeout  = timeout
         self.interval = interval
@@ -62,7 +43,6 @@ class FileStabilityGuard:
                 elapsed += self.interval
                 continue
             if size == prev_size and size > 0:
-                log.debug(f"Ficheiro estável em {elapsed:.1f}s: {os.path.basename(path)}")
                 return True
             prev_size = size
             time.sleep(self.interval)
@@ -71,18 +51,12 @@ class FileStabilityGuard:
         return False
 
 
-# ──────────────────────────────────────────────────────────────
-# HANDLER DE EVENTOS COM THREADPOOL
-# ──────────────────────────────────────────────────────────────
-
 class WoFFEventHandler(FileSystemEventHandler):
-    """
-    Filtra e processa eventos de sistema de ficheiros do watchdog observer.
-    Aguarda estabilidade do ficheiro antes de fazer parse.
-    """
-    
     WATCHED_EXT = {".xml", ".txt", ".log"}
     IGNORED     = {"desktop.ini", "thumbs.db", ".tmp", "~", ".bak", ".lnk"}
+    
+    # FIX: Janela de tempo para ignorar eventos duplicados (Debounce)
+    DEBOUNCE_SEC = 5.0 
 
     def __init__(self, config, db_manager: DatabaseManager, discovery=None, pilot_id: Optional[str] = None):
         self.config    = config
@@ -98,6 +72,12 @@ class WoFFEventHandler(FileSystemEventHandler):
         self._pool = ThreadPoolExecutor(max_workers=config.max_workers, thread_name_prefix="woff-worker")
         self._inflight: set[str] = set()
         self._inflight_lock = threading.Lock()
+        
+        # FIX: Dicionário para guardar o último tempo de processamento de cada ficheiro
+        self._last_processed = {}
+        self._debounce_lock = threading.Lock()
+        
+        self.campaign_engine = CampaignEngine(db_manager)
 
     def on_modified(self, event):
         if not event.is_directory:
@@ -116,6 +96,16 @@ class WoFFEventHandler(FileSystemEventHandler):
         if any(p in bn for p in self.IGNORED):
             return
             
+        # FIX: Verificação de Debounce
+        now = time.time()
+        with self._debounce_lock:
+            last_time = self._last_processed.get(path, 0)
+            if now - last_time < self.DEBOUNCE_SEC:
+                # Evento disparado demasiado cedo após o último processamento. Ignorar.
+                return
+            # Atualiza o tempo imediatamente para bloquear outros eventos rápidos
+            self._last_processed[path] = now
+            
         with self._inflight_lock:
             if path in self._inflight:
                 return
@@ -127,18 +117,14 @@ class WoFFEventHandler(FileSystemEventHandler):
         try:
             log.info(f"Detectado [{event_type}]: {os.path.basename(path)}")
 
-            # Registra no log de descoberta se o modo estiver ativo
             if self.discovery:
-                time.sleep(0.4)
                 if os.path.exists(path):
                     self.discovery.log_file(path, event_type)
 
-            # Aguarda que o ficheiro esteja completamente escrito
             if not self.guard.wait(path):
                 log.warning(f"Ignorado (ficheiro instável): {os.path.basename(path)}")
                 return
 
-            # Roteia para o parser correto baseado no nome/extensão
             ext = os.path.splitext(path)[1].lower()
             if ext == ".xml":
                 self._do_xml(path)
@@ -148,13 +134,10 @@ class WoFFEventHandler(FileSystemEventHandler):
         except Exception as e:
             log.exception(f"Erro inesperado a processar {path}: {e}")
         finally:
-            # Pequena pausa para evitar reprocessar imediato de modificações encadeadas
-            time.sleep(1.0)
             with self._inflight_lock:
                 self._inflight.discard(path)
 
     def _do_xml(self, path: str):
-        """Processa ficheiros XML (geralmente templates ou configurações do motor)."""
         parser = WoFFXMLParser()
         if parser.parse(path):
             self.db_manager.merge_and_write(
@@ -165,13 +148,12 @@ class WoFFEventHandler(FileSystemEventHandler):
             )
 
     def _do_text(self, path: str):
-        """Processa ficheiros de texto (Logs, Claims, Squads, Dossier e mission.log)."""
         fname = os.path.basename(path).lower()
         
-        # 1. Se for o ficheiro Dossier (Binário Ofuscado)
         if "dossier" in fname:
             parser = WoFFDossierParser()
             if parser.parse(path):
+                old_status, old_rank = self.db_manager.get_pilot_state(parser.pilot.name)
                 self.db_manager.merge_and_write(
                     pilot=parser.pilot,
                     missions=[],
@@ -179,9 +161,14 @@ class WoFFEventHandler(FileSystemEventHandler):
                     decorations=parser.decorations,
                     wingmen=parser.wingmen
                 )
+                new_status = parser.pilot.status
+                new_rank = parser.pilot.rank
+                if (old_status != new_status) or (old_rank != new_rank and new_rank):
+                    self.campaign_engine.process_life_events(
+                        parser.pilot.name, new_status, new_rank, old_status, old_rank
+                    )
             return
             
-        # 2. Se for um log de missão do motor do jogo (.log)
         if fname == "mission.log":
             parser = WoFFMissionLogParser()
             if parser.parse(path):
@@ -193,7 +180,6 @@ class WoFFEventHandler(FileSystemEventHandler):
                 )
             return
             
-        # 3. Restantes ficheiros de piloto (Log.txt, Claims.txt, Squads.txt)
         parser = WoFFPilotDataParser()
         if parser.parse(path):
             self.db_manager.merge_and_write(
@@ -202,23 +188,11 @@ class WoFFEventHandler(FileSystemEventHandler):
                 victories=parser.victories,
                 decorations=[]
             )
-            
-             # ──────────────────────────────────────────────────────────────
-            # INICIAR FASE 2 (RPG ENGINE)
-            # ──────────────────────────────────────────────────────────────
-            # Se o parser extraiu missões, chamamos o CampaignEngine em background
-            # para calcular Fadiga, Moral e gerar o Diário de Bordo.
             if parser.missions and parser.pilot and parser.pilot.name:
                 pilot_name = parser.pilot.name
                 mission_id = parser.missions[0].id
-                
-                # Submeter para a thread pool para não bloquear o watchdog
-                self._pool.submit(
-                    self.campaign_engine.process_mission_end, 
-                    pilot_name, 
-                    mission_id
-                )
+                self.campaign_engine.process_mission_end(pilot_name, mission_id)
+            
     def shutdown(self):
-        """Encerra o pool de threads graciosamente."""
         log.info("A aguardar conclusão das threads de processamento...")
-        self._pool.shutdown(wait=True)            
+        self._pool.shutdown(wait=True)

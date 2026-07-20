@@ -36,12 +36,19 @@ class WatchdogConfig:
     discovery_log_path: str = "woff_discovery.log"
     log_level: str = "INFO"
     max_workers: int = 4
-    export_schema_version: str = "1.8"
+    export_schema_version: str = "2.2" # ATUALIZADO
 
     @classmethod
     def from_dict(cls, d: dict) -> "WatchdogConfig":
-        """Cria a configuração a partir de um dicionário, ignorando chaves inválidas."""
-        valid = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
+        """Cria a configuração a partir de um dicionário, avisando sobre chaves inválidas."""
+        valid_keys = cls.__dataclass_fields__.keys()
+        unknown_keys = [k for k in d.keys() if k not in valid_keys]
+        
+        if unknown_keys:
+            log.warning(f"⚠ Chaves desconhecidas no config.json ignoradas: {unknown_keys}")
+            log.warning("Verifica se há erros de digitação no ficheiro de configuração.")
+            
+        valid = {k: v for k, v in d.items() if k in valid_keys}
         return cls(**valid)
 
     def to_dict(self) -> dict:
@@ -78,13 +85,17 @@ def load_config(path: str) -> WatchdogConfig:
             default_cfg = WatchdogConfig()
             base_path = Path(woff_path)
             
-            # Configura os caminhos automaticamente baseados no que descobrimos
+            # Configura os caminhos automaticamente
             pilots_path = base_path / "campaigns" / "CampaignData" / "Pilots"
             
             # Corrigido: Os Logs costumam estar uma pasta acima do caminho base do jogo
             logs_path = base_path.parent / "Logs"
             if not logs_path.exists():
-                logs_path = base_path / "Logs" # Fallback caso a estrutura seja diferente
+                logs_path = base_path / "Logs"
+            
+            # Validação: Será que os caminhos realmente existem no disco?
+            valid_pilots = pilots_path.exists()
+            valid_logs = logs_path.exists()
             
             default_cfg.watch_paths = [str(pilots_path), str(logs_path)]
             default_cfg.export_path = str(Path.home() / "Documents" / "WoFFBase" / "woff_data.db")
@@ -92,7 +103,16 @@ def load_config(path: str) -> WatchdogConfig:
             # Guarda o config para o utilizador poder editar no futuro
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(default_cfg.to_dict(), f, indent=2, ensure_ascii=False)
-            log.info(f"✓ Auto-deteção bem-sucedida! config.json criado em: {p}")
+                
+            # Feedback inteligente ao utilizador
+            if valid_pilots and valid_logs:
+                log.info(f"✓ Auto-deteção bem-sucedida! config.json criado em: {p}")
+            else:
+                log.warning("⚠ Auto-deteção encontrou o jogo no Registo, mas as pastas padrão não existem:")
+                if not valid_pilots: log.warning(f"  -> Pilots não encontrado em: {pilots_path}")
+                if not valid_logs: log.warning(f"  -> Logs não encontrado em: {logs_path}")
+                log.warning("Por favor, edite o ficheiro config.json manualmente com os caminhos corretos.")
+                
             return default_cfg
     except ImportError:
         log.warning("Módulo de registo não disponível. A usar valores padrão.")

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import sys
+import glob
 import argparse
 import logging
 import threading
@@ -52,6 +53,7 @@ try:
     from discovery import DiscoveryLogger
     from medal_cataloger import catalog_medals
     from squadron_cataloger import catalog_squadrons
+    from campaign_engine import CampaignEngine
     
     # Importar os Parsers para a ferramenta de debug e leitura inicial
     from parsers.xml_parser import WoFFXMLParser
@@ -100,44 +102,83 @@ class WoFFWatchdog:
             log.warning(f"  ✗ Não encontrado: {p}")
 
         if not valid:
-            log.error(
-                "\nNenhum caminho válido encontrado!\n"
-                "Edita config.json com os caminhos correctos da tua instalação WoFF.\n"
-            )
+            log.error("\nNenhum caminho válido encontrado!\nEdita o config.json com os caminhos correctos.\n")
             return False
 
-        # Procura e cataloga Medalhas e Esquadrões do jogo na Base de Dados
-        # Corrigido: Sobe apenas 1 diretório (de Pilots para CampaignData)
-        campaign_data_path = os.path.dirname(valid[0])
-        
-        medals_path = os.path.join(campaign_data_path, "Medals")
-        if os.path.exists(medals_path):
+        # FIX: Procurar as pastas 'Medals' e 'Scratchpad' em todos os caminhos válidos
+        medals_path = None
+        scratchpad_path = None
+        for path in valid:
+            if not medals_path and os.path.exists(os.path.join(path, "Medals")):
+                medals_path = os.path.join(path, "Medals")
+            if not medals_path and os.path.exists(os.path.join(os.path.dirname(path), "Medals")):
+                medals_path = os.path.join(os.path.dirname(path), "Medals")
+                
+            if not scratchpad_path and os.path.exists(os.path.join(path, "Scratchpad")):
+                scratchpad_path = os.path.join(path, "Scratchpad")
+            if not scratchpad_path and os.path.exists(os.path.join(os.path.dirname(path), "Scratchpad")):
+                scratchpad_path = os.path.join(os.path.dirname(path), "Scratchpad")
+
+        if medals_path:
             catalog_medals(medals_path, self.config.export_path)
-        else:
-            log.warning(f"Pasta de medalhas não encontrada em: {medals_path}")
-
-        scratchpad_path = os.path.join(campaign_data_path, "Scratchpad")
-        if os.path.exists(scratchpad_path):
+        if scratchpad_path:
             catalog_squadrons(scratchpad_path, self.config.export_path)
-        else:
-            log.warning(f"Pasta de esquadrões (Scratchpad) não encontrada em: {scratchpad_path}")
 
         # ──────────────────────────────────────────────────────────────
-        # LEITURA INICIAL DO DOSSIER
-        # Garante que o piloto e os wingmen estão na DB antes de qualquer log
+        # FIX: SINCRONIZAÇÃO INICIAL DE TODOS OS PILOTOS
+        # Procura TODOS os ficheiros de piloto (Pilot1, Pilot2, etc.) e processa-os
+        # para garantir que a Base de Dados está atualizada no arranque.
         # ──────────────────────────────────────────────────────────────
-        dossier_path = os.path.join(valid[0], "Pilot1Dossier.txt")
-        if os.path.exists(dossier_path):
-            log.info("A processar Dossier inicial do piloto...")
-            parser = WoFFDossierParser()
-            if parser.parse(dossier_path):
-                self.db_manager.merge_and_write(
-                    pilot=parser.pilot,
-                    missions=[],
-                    victories=[],
-                    decorations=parser.decorations,
-                    wingmen=parser.wingmen
-                )
+        log.info("A sincronizar dados iniciais dos pilotos...")
+        campaign_engine = CampaignEngine(self.db_manager)
+        
+        for path in valid:
+            # Procura Dossiers, Logs, Claims e Squads
+            for file_pattern in ["Pilot*Dossier.txt", "Pilot*Log.txt", "Pilot*Claims.txt", "Pilot*Squads.txt"]:
+                for file_path in glob.glob(os.path.join(path, file_pattern)):
+                    fname = os.path.basename(file_path).lower()
+                    
+                    try:
+                        if "dossier" in fname:
+                            parser = WoFFDossierParser()
+                            if parser.parse(file_path):
+                                old_status, old_rank = self.db_manager.get_pilot_state(parser.pilot.name)
+                                self.db_manager.merge_and_write(
+                                    pilot=parser.pilot, missions=[], victories=[],
+                                    decorations=parser.decorations, wingmen=parser.wingmen
+                                )
+                                new_status, new_rank = parser.pilot.status, parser.pilot.rank
+                                if (old_status != new_status) or (old_rank != new_rank and new_rank):
+                                    campaign_engine.process_life_events(
+                                        parser.pilot.name, new_status, new_rank, old_status, old_rank
+                                    )
+                        elif "squads" in fname:
+                            parser = WoFFPilotDataParser()
+                            if parser.parse(file_path):
+                                self.db_manager.merge_and_write(
+                                    pilot=parser.pilot, missions=[], victories=[], decorations=[]
+                                )
+                        elif "log" in fname and "mission" not in fname:
+                            parser = WoFFPilotDataParser()
+                            if parser.parse(file_path):
+                                self.db_manager.merge_and_write(
+                                    pilot=parser.pilot, missions=parser.missions, 
+                                    victories=[], decorations=[]
+                                )
+                                # Se houver missões, processa o RPG para elas
+                                if parser.missions and parser.pilot and parser.pilot.name:
+                                    campaign_engine.process_mission_end(
+                                        parser.pilot.name, parser.missions[0].id
+                                    )
+                        elif "claims" in fname:
+                            parser = WoFFPilotDataParser()
+                            if parser.parse(file_path):
+                                self.db_manager.merge_and_write(
+                                    pilot=None, missions=[], 
+                                    victories=parser.victories, decorations=[]
+                                )
+                    except Exception as e:
+                        log.error(f"Erro ao sincronizar inicialmente {file_path}: {e}")
 
         self._handler = WoFFEventHandler(
             self.config, self.db_manager, self.discovery, self.pilot_id
@@ -151,11 +192,8 @@ class WoFFWatchdog:
 
         log.info(f"\nWatchdog activo — {len(valid)} caminho(s) em monitorização")
         log.info(f"Base de Dados: {self.config.export_path}")
-        if self.discovery:
-            log.info(f"Discovery log: {self.config.discovery_log_path}")
         log.info("Pressiona Ctrl+C para parar.\n")
         return True
-
     def run_forever(self):
         """Mantém o programa a correr até ser interrompido (Ctrl+C)."""
         try:
@@ -237,35 +275,36 @@ def run_parse_file(file_path: str):
             else:
                 log.warning("Parser não encontrou dados válidos.")
             return
-            
-        # 2. Se for um log de missão do motor do jogo (.log)
-        if ext == ".log":
+
+        # 2. Se for EXATAMENTE o mission.log do motor do jogo
+        elif fname == "mission.log":
             parser = WoFFMissionLogParser()
             if parser.parse(file_path):
                 log.info("\n--- 📜 BRIEFING DA MISSÃO ---")
                 log.info(parser.briefing[:300] + "..." if len(parser.briefing) > 300 else parser.briefing)
-                
+
                 log.info("\n--- 🛩️ DADOS DA MISSÃO ---")
                 m = parser.mission
                 if m:
                     log.info(f"Data: {m.date} | Tempo: {m.weather}")
                     log.info(f"Aeronave do Jogador: {m.aircraft}")
                     log.info(f"Esquadrão: {parser.pilot.squadron} ({parser.pilot.nation})")
-                    
-                log.info("\n--- 👥 MEMBROS DO ESQUADRÃO (Flight) ---")
-                for member in parser.squad_members:
-                    log.info(member)
-                    
-                log.info("\n--- 🗺️ PLANO DE VOO ---")
-                for wp in parser.flight_plan:
-                    log.info(f"  -> {wp['type']} | Alt: {wp['altitude']}m | Lat: {wp['lat']} | Lon: {wp['lon']}")
-                    
-                log.info("\n--- 📝 DEBRIEFING ---")
-                log.info(parser.debriefing if parser.debriefing else "Sem debriefing textual encontrado.")
-            else:
-                log.warning("Parser não encontrou dados válidos.")
-            
-        # 3. Se for um ficheiro de piloto (Log, Claims, Squads)
+
+                    log.info("\n--- 👥 MEMBROS DO ESQUADRÃO (Flight) ---")
+                    for member in parser.squad_members:
+                        log.info(member)
+
+                    log.info("\n--- 🗺️ PLANO DE VOO ---")
+                    for wp in parser.flight_plan:
+                        log.info(f"  -> {wp['type']} | Alt: {wp['altitude']}m | Lat: {wp['lat']} | Lon: {wp['lon']}")
+
+                    log.info("\n--- 📝 DEBRIEFING ---")
+                    log.info(parser.debriefing if parser.debriefing else "Sem debriefing textual encontrado.")
+                else:
+                    log.warning("Parser não encontrou dados válidos.")
+            return
+
+        # 3. Restantes ficheiros de piloto (Log.txt, Claims.txt, Squads.txt)
         else:
             parser = WoFFPilotDataParser()
             if parser.parse(file_path):
@@ -276,16 +315,17 @@ def run_parse_file(file_path: str):
                     log.info(f"Aeronave Atual: {parser.pilot.aircraft}")
                     log.info(f"Base: {parser.pilot.aerodrome}")
                     log.info(f"Patente: {parser.pilot.rank}")
-                    
+
                 log.info(f"\nMissões extraídas do log: {len(parser.missions)}")
                 for m in parser.missions[:3]:
                     log.info(f"  -> [{m.date}] {m.missionType} ({m.aircraft})")
-                    
+
                 log.info(f"\nVitórias extraídas: {len(parser.victories)}")
                 for v in parser.victories[:3]:
                     log.info(f"  -> [{v.date}] {v.enemyType} ({v.victoryType})")
             else:
-                log.warning("Parser não encontrou dados válidos.")
+                log.warning("Parser não encontrou dados válidos ou ficheiro não suportado.")
+
     else:
         log.error(f"Extensão não suportada para parse: {ext}")
 
@@ -340,7 +380,7 @@ Exemplos:
         return
 
     # Inicializa o orquestrador
-    dog = WoFFWatchdog(cfg, discovery=args.discover, pilot_id="")
+    dog = WoFFWatchdog(cfg, discovery=args.discover)
     if dog.start():
         dog.run_forever()
 

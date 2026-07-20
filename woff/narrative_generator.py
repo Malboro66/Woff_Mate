@@ -1,54 +1,18 @@
 #!/usr/bin/env python3
 """
-Gerador de Narrativas (narrative_generator.py)
+Gerador de Narrativas Avançado (narrative_generator.py)
 ══════════════════════════════════════════════════════════════════
-Gera entradas de Diário de Bordo imersivas baseadas nos dados 
-extraídos das missões do WoFF BHaH II.
+Gera entradas de Diário de Bordo altamente contextuais, baseadas
+nos dados exatos extraídos da missão (clima, aeronaves, vitórias).
 ══════════════════════════════════════════════════════════════════
 """
-import random
 import logging
 
 log = logging.getLogger("WoFFWatch")
 
 class NarrativeGenerator:
     def __init__(self):
-        self.templates = [
-            "{date} - O céu de Flandres.\nHoje voámos numa {mission_type} no meu {aircraft}. {action} {result}",
-            "{date} - Diário de Bordo.\nMissão de {mission_type}. Decolámos de {aerodrome} com o tempo {weather}. {action} {result}",
-            "{date}\nMais um dia nesta guerra. A tarefa de hoje era uma {mission_type}. {action} {result}"
-        ]
-        
-        self.actions = [
-            "Patrolhámos a área designada",
-            "Aproximámo-nos das linhas inimigas",
-            "A nossa esquadrilha formou e rumamos ao setor",
-            "O voo decorreu com normalidade até ao objetivo"
-        ]
-        
-        self.results_success = [
-            "Regressei à base são e salvo. Mais um dia para contar.",
-            "A aterragem foi suave. Mais uma missão cumprida.",
-            "O avião está em boas condições. Sinto-me com sorte."
-        ]
-        
-        self.results_damaged = [
-            "O meu avião foi atingido, mas consegui trazer a máquina de volta à base.",
-            "Apanhei fogo inimigo. O avião está danificado, mas eu estou vivo.",
-            "Tive de fazer uma aterragem apressada. O avião vai precisar de reparação."
-        ]
-        
-        self.results_wounded = [
-            "Fui ferido durante o voo. A dor é grande, mas sobrevivi.",
-            "Apanhei um fragmento de shrapnel. Estou a caminho do hospital.",
-            "O médico diz que tive sorte. O avião está destruído, mas eu vou recuperar."
-        ]
-        
-        self.results_forced_landing = [
-            "Tive de fazer uma aterragem forçada atrás das linhas inimigas. Não sei o que vai acontecer.",
-            "O motor morreu e fui abaixo. Aterrei em terreno hostil.",
-            "Fui abatido. Consegui aterrar, mas estou perdido."
-        ]
+        pass
 
     def generate(self, pilot_name: str, mission_data: dict) -> str:
         """
@@ -57,41 +21,79 @@ class NarrativeGenerator:
         """
         date = mission_data.get("date", "Data desconhecida")
         mission_type = mission_data.get("missionType", "patrulha")
-        aircraft = mission_data.get("aircraft", "aeronave desconhecida")
-        aerodrome = mission_data.get("aerodrome", "base aérea")
-        weather = mission_data.get("weather", "instável")
-        
-        # Escolher uma ação e um resultado ao acaso (para dar variedade)
-        action = random.choice(self.actions)
-        
-        # Determinar o resultado baseado no estado da missão
-        result_text = random.choice(self.results_success) # Padrão: sucesso
-        
-        if mission_data.get("woundsReceived", 0) > 0:
-            result_text = random.choice(self.results_wounded)
-        elif mission_data.get("damageReceived", 0) > 0:
-            result_text = random.choice(self.results_damaged)
-        elif "force" in mission_data.get("result", "").lower() or "crash" in mission_data.get("result", "").lower():
-            result_text = random.choice(self.results_forced_landing)
-            
-        # Adicionar menção a vitórias, se houver
+        aircraft = mission_data.get("aircraft", "aeronave desconhecida").replace("_", " ")
+        weather = mission_data.get("weather", "").lower()
         claims = mission_data.get("claimsCount", "0")
-        if claims != "0":
-            result_text += f" Tive a honra de abater {claims} aeronave(ns) inimiga(s) hoje!"
-            
-        # Escolher um template e preencher
-        template = random.choice(self.templates)
-        narrative = template.format(
-            date=date,
-            mission_type=mission_type,
-            aircraft=aircraft,
-            action=action,
-            result=result_text,
-            aerodrome=aerodrome,
-            weather=weather
-        )
+        enemy_type = mission_data.get("enemyType", "")
+        result = mission_data.get("result", "").lower()
+        wounds = int(mission_data.get("woundsReceived", 0))
+        damage = int(mission_data.get("damageReceived", 0))
+
+        # 1. Introdução (Data e Clima)
+        weather_text = "O tempo estava instável, com nuvens pesadas." if "cloud" in weather or "overcast" in weather else \
+                       "O céu estava limpo, uma raridade nestes dias de outono." if "clear" in weather else \
+                       "A visibilidade era reduzida devido à neblina e chuva." if "rain" in weather or "fog" in weather else \
+                       "As condições meteorológicas eram típicas para a época."
         
+        narrative = f"{date}\nHoje voámos numa {mission_type} no meu {aircraft}. {weather_text}\n\n"
+
+        # 2. Ação (Contactos e Vitórias)
+        contacts = mission_data.get("enemyContacts", "0")
+        if contacts != "0" and contacts != "":
+            narrative += f"Encontrámos{contacts} aeronaves inimigas. "
+            if claims != "0":
+                enemy_text = f"um {enemy_type}" if enemy_type else "uma aeronave inimiga"
+                if claims == "1":
+                    narrative += f"Consegui encurralar {enemy_text} e abatê-lo. Foi uma vitória suada, mas necessária para manter a moral da esquadrilha alta.\n"
+                else:
+                    narrative += f"Hoje tive um dia de sorte, abati {claims} aeronaves inimigas. O céu pertenceu-nos hoje.\n"
+            else:
+                narrative += "Apesar dos combates aéreos, não consegui confirmar nenhum abate. Eles são escorregadios como enguias.\n"
+        else:
+            narrative += "A patrulha decorreu sem incidentes. O espaço aéreo estava pacífico, embora a artilharia terrestre nunca pare de trovejar lá em baixo.\n"
+
+        # 3. Conclusão (Danos e Resultado)
+        if wounds > 0:
+            narrative += "\nO meu avião foi atingido e eu fui ferido. Sinto uma dor lancinante, mas os médicos dizem que vou sobreviver. Preciso de descanso."
+        elif "force" in result:
+            narrative += "\nO motor começou a falhar e tive de fazer uma aterragem forçada. Foi um milagre ter saído ileso da máquina destroçada."
+        elif damage > 0:
+            narrative += "\nRegressei à base com o avião crivado de balas. A oficina vai ter trabalho nos próximos dias, mas estou vivo para contar a história."
+        else:
+            narrative += "\nAterrei em segurança na base. Mais um dia nesta guerra que parece não ter fim."
+
         return narrative
+
+    def generate_life_event(self, new_status: str, old_status: str, new_rank: str, old_rank: str) -> str:
+        """Gera texto para eventos de vida (ferimentos, promoções, etc.)"""
+        event_text = ""
+        
+        # Se o piloto é novo (old_status é None)
+        if old_status is None:
+            return f"Cheguei à esquadrilha como {new_rank}. Sinto uma mistura de ansiedade e patriotismo. É o início da minha jornada nestes céus."
+        
+        # Mudança de Status (Ferimentos / Hospital / Licença)
+        if old_status != new_status:
+            new_s = new_status.lower()
+            old_s = old_status.lower()
+            
+            if "wound" in new_s or "hospital" in new_s:
+                event_text += "Acordei com dores lancinantes. O médico disse que fui atingido e vou precisar de semanas para recuperar. Fico preso nesta cama de hospital enquanto os meus camaradas continuam a lutar no céu.\n"
+            elif "leave" in new_s:
+                event_text += "Recebi autorização para ir de licença. Vou aproveitar este tempo longe da frente para limpar a mente destes meses de combate interminável.\n"
+            elif "in service" in new_s or "active" in new_s:
+                if "wound" in old_s or "hospital" in old_s:
+                    event_text += "Finalmente recebi alta médica! É bom estar de volta à esquadrilha. O cheiro a óleo e lona nunca cheirou tão bem. Estou pronto para voltar a voar.\n"
+                elif "leave" in old_s:
+                    event_text += "Regressei da licença. A paz e o sossego acabaram, mas é bom estar de volta com os rapazes.\n"
+                    
+        # Promoção
+        if old_rank != new_rank and new_rank:
+            if event_text:
+                event_text += "\n"
+            event_text += f"Fui promovido a {new_rank}! É uma honra, mas também traz um peso extra nos ombros. Os camaradas festejaram no mess esta noite."
+            
+        return event_text if event_text else None
 
 # Instância global
 narrative_generator = NarrativeGenerator()

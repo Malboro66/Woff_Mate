@@ -2,34 +2,22 @@
 """
 Modelos de Dados (models.py)
 ══════════════════════════════════════════════════════════════════
-Contém as estruturas de dados (dataclasses) que representam a 
-informação extraída dos ficheiros do WoFF e exportada para a 
-aplicação WoFFBase.
-
-A utilização de dataclasses garante:
-- Tipagem forte (type hints) para melhor manutenção.
-- Geração automática de construtores (__init__) e representações (__repr__).
-- Conversão direta para dicionários (asdict) para exportação JSON.
-══════════════════════════════════════════════════════════════════
 """
-
-from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
 from typing import List
 
-
 def _uid() -> str:
-    """Gera um identificador único curto (12 caracteres hex)."""
     return uuid.uuid4().hex[:12]
-
 
 @dataclass
 class WoFFPilot:
     """Representa os dados de um piloto na campanha."""
     id:           str = field(default_factory=_uid)
     name:         str = ""
+    fName:        str = ""
+    sName:        str = ""
     nation:       str = ""
     rank:         str = ""
     squadron:     str = ""
@@ -39,16 +27,27 @@ class WoFFPilot:
     startDate:    str = ""
     status:       str = "Active"
     notes:        str = ""
+    photo:        str = ""
+    
+    # Estatísticas extraídas do Dossier
+    birthDate:    str = ""
+    birthPlace:   str = ""
+    missions:     str = "0"
+    flminutes:    str = "0"
+    claimsCount:  str = "0"
+    killsCount:   str = "0"
+    skill:        str = "0"
+    reputation:   str = "0"
+    
     source_file:  str = ""
     last_updated: str = ""
 
-
 @dataclass
 class WoFFMission:
-    """Representa uma missão individual (sortie) voada pelo piloto."""
     id:             str  = field(default_factory=_uid)
     pilotId:        str  = ""
     date:           str  = ""
+    time:           str  = "" # ADICIONADO: Para deduplicação correta
     missionType:    str  = ""
     aircraft:       str  = ""
     duration:       str  = ""
@@ -63,10 +62,8 @@ class WoFFMission:
     notes:          str  = ""
     source_file:    str  = ""
 
-
 @dataclass
 class WoFFVictory:
-    """Representa uma vitória (claim/kill) reportada num combate."""
     id:          str  = field(default_factory=_uid)
     pilotId:     str  = ""
     date:        str  = ""
@@ -80,10 +77,8 @@ class WoFFVictory:
     notes:       str  = ""
     source_file: str  = ""
 
-
 @dataclass
 class WoFFDecoration:
-    """Representa uma condecoração ou medalha atribuída ao piloto."""
     id:          str = field(default_factory=_uid)
     pilotId:     str = ""
     name:        str = ""
@@ -91,25 +86,9 @@ class WoFFDecoration:
     citation:    str = ""
     source_file: str = ""
 
-
-@dataclass
-class WoFFExport:
-    """
-    Estrutura raiz exportada — compatível com o WoFFBase app.
-    Este dicionário é o que é serializado para o ficheiro JSON final.
-    """
-    pilots:      List[dict] = field(default_factory=list)
-    missions:    List[dict] = field(default_factory=list)
-    victories:   List[dict] = field(default_factory=list)
-    decorations: List[dict] = field(default_factory=list)
-    diary:       List[dict] = field(default_factory=list)
-    meta:        dict       = field(default_factory=dict)
-
-
 @dataclass
 class WoFFWingman:
-    """Representa um membro de esquadrão (AI) extraído do Dossier."""
-    id:          str = field(default_factory=_uid)  # <--- ADICIONAR ESTA LINHA
+    id:          str = field(default_factory=_uid)
     pilotId:     str = ""
     rank:        str = ""
     fName:       str = ""
@@ -120,29 +99,3 @@ class WoFFWingman:
     missions:    str = "0"
     flminutes:   str = "0"
     bio:         str = ""
-
-@dataclass
-class WoFFSquadron:
-    """Representa um esquadrão existente no jogo."""
-    id: str = ""             # Nome do ficheiro (ex: "Esc 15")
-    name: str = ""           # Nome completo extraído
-    raw_data: str = ""       # Dados decifrados em Hex para referência futura
-    source_file: str = ""
-
-@dataclass
-class WoFFPilot:
-    """Representa os dados de um piloto na campanha."""
-    id:           str = field(default_factory=_uid)
-    name:         str = ""
-    nation:       str = ""
-    rank:         str = ""
-    squadron:     str = ""
-    aircraft:     str = ""
-    aerodrome:    str = ""
-    sector:       str = ""
-    startDate:    str = ""
-    status:       str = "Active"
-    notes:        str = ""
-    photo:        str = ""  # <--- ADICIONAR ESTA LINHA (ID da foto)
-    source_file:  str = ""
-    last_updated: str = ""    
