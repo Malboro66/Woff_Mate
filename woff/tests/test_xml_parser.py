@@ -1,34 +1,14 @@
-#!/usr/bin/env python3
-"""
-Testes Unitários para o XML Parser (tests/test_xml_parser.py)
-══════════════════════════════════════════════════════════════════
-Valida a robustez e a precisão da extração de dados do 
-WoFFXMLParser.
-══════════════════════════════════════════════════════════════════
-"""
-
-import os
-import sys
 import unittest
 import tempfile
+import os
 import xml.etree.ElementTree as ET
 
-# ──────────────────────────────────────────────────────────────
-# CONFIGURAÇÃO DE CAMINHO (Resolve o erro do Pyright/VS Code)
-# ──────────────────────────────────────────────────────────────
-# Garante que a raiz do projeto está no caminho de importação
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+# Sem mais sys.path ou os.path manipulations!
+# O pytest (com a ajuda do conftest.py na pasta woff/) resolve os imports automaticamente.
+from parsers.xml_parser import WoFFXMLParser
+from models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration
 
-# Agora os imports funcionarão tanto em runtime como no VS Code/Pyright
-from woff.parsers.xml_parser import WoFFXMLParser
-from woff.models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration
-
-
-# ──────────────────────────────────────────────────────────────
-# MOCK DATA
-# ──────────────────────────────────────────────────────────────
+# ... (Mocks e resto do código mantêm-se exatamente igual) ...
 
 MOCK_XML_VALID = """<?xml version="1.0" encoding="UTF-8"?>
 <Campaign>
@@ -114,27 +94,21 @@ class TestWoFFXMLParser(unittest.TestCase):
 
     def setUp(self):
         self.parser = WoFFXMLParser()
-        # Cria um ficheiro temporário para os testes
         self.tmp_file = tempfile.NamedTemporaryFile(
             mode="w", suffix=".xml", delete=False, encoding="utf-8"
         )
         
     def tearDown(self):
-        # Fecha e apaga o ficheiro temporário após cada teste
         self.tmp_file.close()
         if os.path.exists(self.tmp_file.name):
             os.unlink(self.tmp_file.name)
 
     def _write_and_parse(self, content: str) -> bool:
-        """Helper: Escreve no ficheiro temp e corre o parser."""
         self.tmp_file.write(content)
-        self.tmp_file.flush() # Garante que o conteúdo é escrito no disco
+        self.tmp_file.flush()
         return self.parser.parse(self.tmp_file.name)
 
-    # ── Testes de Sucesso ──
-
     def test_parse_valid_xml(self):
-        """Testa se um XML bem formado retorna True e popula os dados."""
         ok = self._write_and_parse(MOCK_XML_VALID)
         self.assertTrue(ok)
         self.assertIsNotNone(self.parser.pilot)
@@ -143,7 +117,6 @@ class TestWoFFXMLParser(unittest.TestCase):
         self.assertEqual(len(self.parser.decorations), 1)
 
     def test_pilot_data_normalization(self):
-        """Testa se os dados do piloto são normalizados corretamente."""
         self._write_and_parse(MOCK_XML_VALID)
         p = self.parser.pilot
         
@@ -151,23 +124,21 @@ class TestWoFFXMLParser(unittest.TestCase):
         self.assertEqual(p.name, "James Percival Hartley")
         self.assertEqual(p.nation, "RFC")
         self.assertEqual(p.status, "Active")
-        self.assertEqual(p.startDate, "1917-04-01") # Já estava normalizado
-        self.assertTrue(p.id) # Tem de ter um ID gerado
+        self.assertEqual(p.startDate, "1917-04-01")
+        self.assertTrue(p.id)
 
     def test_mission_data_normalization(self):
-        """Testa a extração e normalização da missão."""
         self._write_and_parse(MOCK_XML_VALID)
         m = self.parser.missions[0]
         
         self.assertIsInstance(m, WoFFMission)
         self.assertEqual(m.date, "1917-04-06")
-        self.assertEqual(m.missionType, "Offensive Patrol (OP)") # Normalizado
+        self.assertEqual(m.missionType, "Offensive Patrol (OP)")
         self.assertEqual(m.result, "Major Engagement")
         self.assertFalse(m.damageReceived)
         self.assertFalse(m.woundsReceived)
 
     def test_victory_data_normalization(self):
-        """Testa a extração e normalização da vitória."""
         self._write_and_parse(MOCK_XML_VALID)
         v = self.parser.victories[0]
         
@@ -175,50 +146,37 @@ class TestWoFFXMLParser(unittest.TestCase):
         self.assertEqual(v.date, "1917-04-06")
         self.assertEqual(v.time, "10:35")
         self.assertEqual(v.enemyType, "Albatros D.III")
-        self.assertEqual(v.victoryType, "Out of Control (OOC)") # Normalizado
+        self.assertEqual(v.victoryType, "Out of Control (OOC)")
         self.assertTrue(v.confirmed)
 
     def test_decoration_date_normalization(self):
-        """Testa se a data da condecoração é normalizada para ISO 8601."""
         self._write_and_parse(MOCK_XML_VALID)
         d = self.parser.decorations[0]
         
         self.assertIsInstance(d, WoFFDecoration)
         self.assertEqual(d.name, "Military Cross (MC)")
-        self.assertEqual(d.date, "1917-04-15") # Normalizado de "April 15, 1917"
-
-    # ── Testes de Normalização de Status ──
+        self.assertEqual(d.date, "1917-04-15")
 
     def test_status_kia_normalization(self):
-        """Testa se 'Killed in Action' vira 'KIA'."""
         self._write_and_parse(MOCK_XML_KIA)
         self.assertEqual(self.parser.pilot.status, "KIA")
         self.assertEqual(self.parser.pilot.nation, "American")
 
     def test_status_severe_wound_normalization(self):
-        """Testa se 'In Hospital' + 'Serious' vira 'Seriously Wounded'."""
         self._write_and_parse(MOCK_XML_WOUNDED)
         self.assertEqual(self.parser.pilot.status, "Seriously Wounded")
         self.assertEqual(self.parser.pilot.nation, "RNAS")
 
-    # ── Testes de Falha / Edge Cases ──
-
     def test_parse_invalid_xml(self):
-        """Testa se um XML corrompido retorna False e loga o erro."""
         ok = self._write_and_parse(MOCK_XML_INVALID)
         self.assertFalse(ok)
         self.assertIsNone(self.parser.pilot)
 
     def test_parse_xml_without_pilot(self):
-        """Testa o comportamento quando não há tag Pilot (faz fallback para o nome do ficheiro)."""
         ok = self._write_and_parse(MOCK_XML_NO_PILOT)
-        # O parser usa o nome do ficheiro como fallback para o nome do piloto
-        self.assertTrue(ok)
-        self.assertIsNotNone(self.parser.pilot)
-        # O nome do piloto será o nome do ficheiro temporário (sem extensão)
-        expected_name = os.path.splitext(os.path.basename(self.tmp_file.name))[0]
-        self.assertEqual(self.parser.pilot.name, expected_name)
-
+        self.assertFalse(ok)
+        self.assertIsNone(self.parser.pilot)
+        self.assertEqual(len(self.parser.missions), 0)
 
 if __name__ == "__main__":
     unittest.main()

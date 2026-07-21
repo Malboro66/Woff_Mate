@@ -51,21 +51,22 @@ class WoFFMissionLogParser:
 
         # 2. Extrair Parâmetros e Briefing
         params = root.find("Params")
-        if params is not None:
-            date_str = params.get("Date", "") # Formato do jogo: M/D/YYYY (ex: 9/20/1915)
-            self.mission = WoFFMission()
-            parts = date_str.split("/")
-            if len(parts) == 3:
-                # Converte M/D/YYYY para YYYY-MM-DD
-                self.mission.date = f"{parts[2]}-{parts[0].zfill(2)}-{parts[1].zfill(2)}"
+        if params is None:
+            log.warning("  Tag <Params> não encontrada no XML do log. Abortando parse.")
+            return False  # <--- FIX: Abortar logo aqui se não houver Params
             
-            self.mission.weather = params.get("Weather", "Unknown").replace("OFFDynamicMissionWeather.xml", "Dynamic")
+        date_str = params.get("Date", "") # Formato: 9/20/1915
+        self.mission = WoFFMission()
+        parts = date_str.split("/")
+        if len(parts) == 3:
+            self.mission.date = f"{parts[2]}-{parts[0].zfill(2)}-{parts[1].zfill(2)}"
+        
+        self.mission.weather = params.get("Weather", "Unknown").replace("OFFDynamicMissionWeather.xml", "Dynamic")
 
         overview = root.find("Overview")
         if overview is not None and overview.text:
             self.briefing = overview.text.strip()
 
-        # 3. Encontrar a formação do jogador e membros do esquadrão
         # 3. Encontrar a formação do jogador e membros do esquadrão
         for formation in root.findall("AirFormation"):
             is_player_formation = False
@@ -83,7 +84,6 @@ class WoFFMissionLogParser:
                     self.mission.sector = self.pilot.squadron
                     self.mission.aircraft = unit.get("Type", "")
                     
-                # Extrai membros do esquadrão (AI)
                 for u in formation.findall("Unit"):
                     ac_type = u.get("Type", "")
                     fname = u.get("PilotFirstName", "")
@@ -94,7 +94,6 @@ class WoFFMissionLogParser:
                     else:
                         self.squad_members.append(f"{role}: [Player] ({ac_type})")
                     
-                # Extrai Plano de Voo (Waypoints) com Coordenadas Decimais
                 route = formation.find("Route")
                 if route is not None:
                     for wp in route.findall("Waypoint"):
@@ -103,18 +102,13 @@ class WoFFMissionLogParser:
                         lat_raw = wp.get("Lat", "")
                         lon_raw = wp.get("Lon", "")
                         
-                        # Converte as coordenadas para decimal
                         lat_dec = normalize_coordinates(lat_raw)
                         lon_dec = normalize_coordinates(lon_raw)
                         
-                        # Guarda como dicionário para a Fase 3 (Mapas)
                         self.flight_plan.append({
-                            "type": wp_type,
-                            "altitude": alt,
-                            "lat": lat_dec,
-                            "lon": lon_dec,
-                            "raw_lat": lat_raw,
-                            "raw_lon": lon_raw
+                            "type": wp_type, "altitude": alt,
+                            "lat": lat_dec, "lon": lon_dec,
+                            "raw_lat": lat_raw, "raw_lon": lon_raw
                         })
                 break
 

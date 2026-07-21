@@ -38,7 +38,8 @@ class WoFFPilotDataParser:
             with open(path, "r", encoding="cp1252", errors="replace") as f: lines = f.readlines()
             if not lines: return False
             p = WoFFPilot()
-            p.name = pilot_name
+            # FIX: Não usar pilot_name ("Pilot 1") para não sobrescrever o nome real na DB.
+            # Deixar vazio para que o COALESCE no database.py mantenha o nome real.
             p.source_file = os.path.basename(path)
             parts = [part.strip() for part in lines[-1].strip().split(";")]
             if len(parts) >= 12:

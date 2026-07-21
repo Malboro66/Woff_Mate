@@ -41,6 +41,7 @@ class DatabaseManager:
         # Inicializa a base de dados
         with self._lock:
             self._init_db()
+            self._migrate_schema()
 
     def _get_conn(self) -> sqlite3.Connection:
         """Cria uma nova ligação para a thread atual."""
@@ -55,179 +56,98 @@ class DatabaseManager:
         try:
             cursor = conn.cursor()
             
-            # Tabela de Metadados
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS meta (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            """)
+            cursor.execute("""CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)""")
 
-            # Tabela de Pilotos (Expandida com dados do Dossier e Fase 2)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS pilots (
-                    id TEXT PRIMARY KEY,
-                    name TEXT UNIQUE,
-                    fName TEXT,
-                    sName TEXT,
-                    nation TEXT,
-                    rank TEXT,
-                    squadron TEXT,
-                    aircraft TEXT,
-                    aerodrome TEXT,
-                    sector TEXT,
-                    startDate TEXT,
-                    status TEXT,
-                    notes TEXT,
-                    photo TEXT,
-                    birthDate TEXT,
-                    birthPlace TEXT,
-                    missions TEXT,
-                    flminutes TEXT,
-                    claimsCount TEXT,
-                    killsCount TEXT,
-                    skill TEXT,
-                    reputation TEXT,
-                    source_file TEXT,
-                    last_updated TEXT
+                    id TEXT PRIMARY KEY, name TEXT UNIQUE, fName TEXT, sName TEXT, nation TEXT, rank TEXT, 
+                    squadron TEXT, aircraft TEXT, aerodrome TEXT, sector TEXT, startDate TEXT, status TEXT, 
+                    notes TEXT, photo TEXT, birthDate TEXT, birthPlace TEXT, missions TEXT, flminutes TEXT, 
+                    claimsCount TEXT, killsCount TEXT, skill TEXT, reputation TEXT, source_file TEXT, last_updated TEXT
                 )
             """)
 
-            # Tabela de Missões (Adicionada coluna 'time' e UNIQUE atualizado)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS missions (
-                    id TEXT PRIMARY KEY,
-                    pilotId TEXT,
-                    date TEXT,
-                    time TEXT,
-                    missionType TEXT,
-                    aircraft TEXT,
-                    duration TEXT,
-                    altitude TEXT,
-                    sector TEXT,
-                    weather TEXT,
-                    enemyContacts TEXT,
-                    claimsCount TEXT,
-                    result TEXT,
-                    damageReceived INTEGER,
-                    woundsReceived INTEGER,
-                    notes TEXT,
-                    source_file TEXT,
+                    id TEXT PRIMARY KEY, pilotId TEXT, date TEXT, time TEXT, missionType TEXT, aircraft TEXT, 
+                    duration TEXT, altitude TEXT, sector TEXT, weather TEXT, enemyContacts TEXT, claimsCount TEXT, 
+                    result TEXT, damageReceived INTEGER, woundsReceived INTEGER, notes TEXT, source_file TEXT,
                     UNIQUE(pilotId, date, time, missionType, aircraft),
                     FOREIGN KEY(pilotId) REFERENCES pilots(id)
                 )
             """)
 
-            # Tabela de Vitórias
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS victories (
-                    id TEXT PRIMARY KEY,
-                    pilotId TEXT,
-                    date TEXT,
-                    time TEXT,
-                    missionId TEXT,
-                    enemyType TEXT,
-                    victoryType TEXT,
-                    location TEXT,
-                    confirmed INTEGER,
-                    witnesses TEXT,
-                    notes TEXT,
-                    source_file TEXT,
-                    UNIQUE(pilotId, date, time, enemyType),
-                    FOREIGN KEY(pilotId) REFERENCES pilots(id)
-                )
-            """)
+            cursor.execute("""CREATE TABLE IF NOT EXISTS victories (
+                id TEXT PRIMARY KEY, pilotId TEXT, date TEXT, time TEXT, missionId TEXT, enemyType TEXT, 
+                victoryType TEXT, location TEXT, confirmed INTEGER, witnesses TEXT, notes TEXT, source_file TEXT,
+                UNIQUE(pilotId, date, time, enemyType), FOREIGN KEY(pilotId) REFERENCES pilots(id))""")
 
-            # Tabela de Condecorações
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS decorations (
-                    id TEXT PRIMARY KEY,
-                    pilotId TEXT,
-                    name TEXT,
-                    date TEXT,
-                    citation TEXT,
-                    source_file TEXT,
-                    UNIQUE(pilotId, name),
-                    FOREIGN KEY(pilotId) REFERENCES pilots(id)
-                )
-            """)
-            
-            # Tabela de Membros de Esquadrão (AI Wingmen)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS squad_members (
-                    id TEXT PRIMARY KEY,
-                    pilotId TEXT,
-                    rank TEXT,
-                    fName TEXT,
-                    sName TEXT,
-                    skill TEXT,
-                    morale TEXT,
-                    status TEXT,
-                    missions TEXT,
-                    flminutes TEXT,
-                    bio TEXT,
-                    UNIQUE(pilotId, fName, sName),
-                    FOREIGN KEY(pilotId) REFERENCES pilots(id)
-                )
-            """)
+            cursor.execute("""CREATE TABLE IF NOT EXISTS decorations (
+                id TEXT PRIMARY KEY, pilotId TEXT, name TEXT, date TEXT, citation TEXT, source_file TEXT,
+                UNIQUE(pilotId, name), FOREIGN KEY(pilotId) REFERENCES pilots(id))""")
 
-            # Tabela de Catálogo de Medalhas
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS medals_catalog (
-                    id TEXT PRIMARY KEY,
-                    country TEXT,
-                    name TEXT,
-                    filename TEXT,
-                    UNIQUE(country, name)
-                )
-            """)
+            cursor.execute("""CREATE TABLE IF NOT EXISTS squad_members (
+                id TEXT PRIMARY KEY, pilotId TEXT, rank TEXT, fName TEXT, sName TEXT, skill TEXT, morale TEXT, 
+                status TEXT, missions TEXT, flminutes TEXT, bio TEXT, UNIQUE(pilotId, fName, sName))""")
 
-            # Tabela de Catálogo de Esquadrões
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS squadrons (
-                    id TEXT PRIMARY KEY,
-                    name TEXT,
-                    raw_data TEXT,
-                    source_file TEXT
-                )
-            """)
+            cursor.execute("""CREATE TABLE IF NOT EXISTS medals_catalog (
+                id TEXT PRIMARY KEY, country TEXT, name TEXT, filename TEXT, UNIQUE(country, name))""")
 
-            # ──────────────────────────────────────────────────────────────
-            # TABELAS DA FASE 2 (RPG SYSTEM)
-            # ──────────────────────────────────────────────────────────────
+            cursor.execute("""CREATE TABLE IF NOT EXISTS squadrons (
+                id TEXT PRIMARY KEY, name TEXT, raw_data TEXT, source_file TEXT)""")
 
-            # Tabela de Estatísticas RPG (Geradas pela nossa app)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS pilot_rpg_stats (
-                    pilotId TEXT PRIMARY KEY,
-                    fatigue INTEGER DEFAULT 0,
-                    morale INTEGER DEFAULT 75,
-                    stress INTEGER DEFAULT 0,
-                    last_updated TEXT,
-                    FOREIGN KEY(pilotId) REFERENCES pilots(id)
-                )
-            """)
+            cursor.execute("""CREATE TABLE IF NOT EXISTS pilot_rpg_stats (
+                pilotId TEXT PRIMARY KEY, fatigue INTEGER DEFAULT 0, morale INTEGER DEFAULT 75, 
+                stress INTEGER DEFAULT 0, last_updated TEXT, FOREIGN KEY(pilotId) REFERENCES pilots(id))""")
 
-            # Tabela de Diário de Bordo (Narrativas geradas)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS diary_entries (
-                    id TEXT PRIMARY KEY,
-                    pilotId TEXT,
-                    missionId TEXT,
-                    entry_date TEXT,
-                    narrative TEXT,
-                    FOREIGN KEY(pilotId) REFERENCES pilots(id),
-                    FOREIGN KEY(missionId) REFERENCES missions(id)
-                )
-            """)
+            cursor.execute("""CREATE TABLE IF NOT EXISTS diary_entries (
+                id TEXT PRIMARY KEY, pilotId TEXT, missionId TEXT, entry_date TEXT, narrative TEXT,
+                FOREIGN KEY(pilotId) REFERENCES pilots(id), FOREIGN KEY(missionId) REFERENCES missions(id))""")
             
             conn.commit()
             log.info(f"Base de dados SQLite pronta: {self.db_path}")
-            
         except Exception as e:
             log.error(f"Erro ao inicializar base de dados: {e}")
         finally:
             conn.close()
+
+    def _migrate_schema(self):
+        """
+        Aplica migrações à Base de Dados se ela for de uma versão antiga.
+        Adiciona colunas em falta usando ALTER TABLE para não perder dados.
+        """
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                
+                def column_exists(table: str, col: str) -> bool:
+                    cursor.execute(f"PRAGMA table_info({table})")
+                    return any(row[1] == col for row in cursor.fetchall())
+
+                # Migrações da tabela pilots (Fase 2)
+                pilots_cols = {
+                    "fName": "TEXT", "sName": "TEXT", "photo": "TEXT", "birthDate": "TEXT", 
+                    "birthPlace": "TEXT", "missions": "TEXT", "flminutes": "TEXT", 
+                    "claimsCount": "TEXT", "killsCount": "TEXT", "skill": "TEXT", "reputation": "TEXT"
+                }
+                for col, typ in pilots_cols.items():
+                    if not column_exists("pilots", col):
+                        cursor.execute(f"ALTER TABLE pilots ADD COLUMN {col} {typ}")
+                        log.info(f"  [Migração] Coluna '{col}' adicionada a 'pilots'.")
+
+                # Migrações da tabela missions (Correção de Deduplicação)
+                if not column_exists("missions", "time"):
+                    cursor.execute("ALTER TABLE missions ADD COLUMN time TEXT")
+                    log.info("  [Migração] Coluna 'time' adicionada a 'missions'.")
+
+                # Atualiza a versão na tabela meta
+                cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)", (self.schema_version,))
+                conn.commit()
+            except Exception as e:
+                log.error(f"Erro na migração de schema: {e}")
+            finally:
+                conn.close()
 
     def get_pilot_state(self, pilot_name: str):
         """Busca o status e rank atual do piloto na DB (antes de atualizar)."""
@@ -241,6 +161,129 @@ class DatabaseManager:
             except Exception as e:
                 log.error(f"Erro ao buscar estado do piloto {pilot_name}: {e}")
                 return None, None
+            finally:
+                conn.close()
+
+    def merge_and_write(self, pilot: Optional[WoFFPilot], missions: List[WoFFMission], victories: List[WoFFVictory], decorations: List[WoFFDecoration], wingmen: Optional[List[WoFFWingman]] = None) -> bool:
+        """Faz o merge dos novos dados na base de dados SQLite."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                pilot_id = ""
+
+                if pilot:
+                    # 1. Procura pelo Nome real (vindo do Dossier)
+                    cursor.execute("SELECT id FROM pilots WHERE name = ?", (pilot.name,))
+                    row = cursor.fetchone()
+                    
+                    # 2. Se não encontrar e for um "Pilot X" genérico, procura pelo ID no source_file.
+                    if not row and re.match(r"^Pilot \d+$", pilot.name):
+                        pilot_num_match = re.match(r"^Pilot (\d+)$", pilot.name)
+                        if pilot_num_match:
+                            pilot_num = pilot_num_match.group(1)
+                            glob_pattern = f"Pilot{pilot_num}[A-Za-z]*.txt"
+                            cursor.execute("SELECT id FROM pilots WHERE source_file GLOB ?", (glob_pattern,))
+                            row = cursor.fetchone()
+
+                    if row:
+                        pilot_id = row[0]
+                        # Usa COALESCE para não sobrescrever dados reais com placeholders vazios
+                        cursor.execute("""
+                            UPDATE pilots SET 
+                                name=COALESCE(NULLIF(?, ''), name), fName=COALESCE(NULLIF(?, ''), fName),
+                                sName=COALESCE(NULLIF(?, ''), sName), nation=COALESCE(NULLIF(?, ''), nation),
+                                rank=COALESCE(NULLIF(?, ''), rank), squadron=COALESCE(NULLIF(?, ''), squadron),
+                                aircraft=COALESCE(NULLIF(?, ''), aircraft), aerodrome=COALESCE(NULLIF(?, ''), aerodrome),
+                                sector=COALESCE(NULLIF(?, ''), sector), startDate=COALESCE(NULLIF(?, ''), startDate),
+                                status=COALESCE(NULLIF(?, ''), status), notes=COALESCE(NULLIF(?, ''), notes),
+                                photo=COALESCE(NULLIF(?, ''), photo), birthDate=COALESCE(NULLIF(?, ''), birthDate),
+                                birthPlace=COALESCE(NULLIF(?, ''), birthPlace), missions=COALESCE(NULLIF(?, ''), missions),
+                                flminutes=COALESCE(NULLIF(?, ''), flminutes), claimsCount=COALESCE(NULLIF(?, ''), claimsCount),
+                                killsCount=COALESCE(NULLIF(?, ''), killsCount), skill=COALESCE(NULLIF(?, ''), skill),
+                                reputation=COALESCE(NULLIF(?, ''), reputation), source_file=COALESCE(NULLIF(?, ''), source_file),
+                                last_updated=?
+                            WHERE id=?
+                        """, (pilot.name, pilot.fName, pilot.sName, pilot.nation, pilot.rank, pilot.squadron, pilot.aircraft, 
+                              pilot.aerodrome, pilot.sector, pilot.startDate, pilot.status, pilot.notes, pilot.photo, 
+                              pilot.birthDate, pilot.birthPlace, pilot.missions, pilot.flminutes, pilot.claimsCount, 
+                              pilot.killsCount, pilot.skill, pilot.reputation, pilot.source_file, pilot.last_updated, pilot_id))
+                        log.info(f"  Piloto atualizado na DB: ID {pilot_id}")
+                    else:
+                        pilot_id = pilot.id
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO pilots (id, name, fName, sName, nation, rank, squadron, aircraft, aerodrome, 
+                            sector, startDate, status, notes, photo, birthDate, birthPlace, missions, flminutes, claimsCount, 
+                            killsCount, skill, reputation, source_file, last_updated)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        """, (pilot.id, pilot.name, pilot.fName, pilot.sName, pilot.nation, pilot.rank, pilot.squadron, pilot.aircraft, 
+                              pilot.aerodrome, pilot.sector, pilot.startDate, pilot.status, pilot.notes, pilot.photo, 
+                              pilot.birthDate, pilot.birthPlace, pilot.missions, pilot.flminutes, pilot.claimsCount, 
+                              pilot.killsCount, pilot.skill, pilot.reputation, pilot.source_file, pilot.last_updated))
+                        log.info(f"  Novo piloto adicionado à DB: {pilot.name}")
+                else:
+                    # Se pilot for None, resolve o UUID baseado no source_file das missões/vitórias
+                    source_file = next((m.source_file for m in missions if m.source_file), None)
+                    if not source_file and victories:
+                        source_file = next((v.source_file for v in victories if v.source_file), None)
+                        
+                    if source_file:
+                        pilot_num_match = re.match(r"^Pilot(\d+)", os.path.basename(source_file), re.I)
+                        if pilot_num_match:
+                            pilot_num = pilot_num_match.group(1)
+                            glob_pattern = f"Pilot{pilot_num}[A-Za-z]*.txt"
+                            cursor.execute("SELECT id FROM pilots WHERE source_file GLOB ?", (glob_pattern,))
+                            row = cursor.fetchone()
+                            if row:
+                                pilot_id = row[0]
+
+                if not pilot_id:
+                    pilot_id = next((m.pilotId for m in missions if m.pilotId), "")
+                    if not pilot_id:
+                        return False
+
+                added_m = 0
+                for m in missions:
+                    m.pilotId = pilot_id
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO missions (id, pilotId, date, time, missionType, aircraft, duration, altitude, 
+                        sector, weather, enemyContacts, claimsCount, result, damageReceived, woundsReceived, notes, source_file)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """, (m.id, m.pilotId, m.date, m.time, m.missionType, m.aircraft, m.duration, m.altitude, m.sector, 
+                          m.weather, m.enemyContacts, m.claimsCount, m.result, int(m.damageReceived), int(m.woundsReceived), 
+                          m.notes, m.source_file))
+                    added_m += cursor.rowcount
+
+                added_v, added_d, added_w = 0, 0, 0
+                for v in victories:
+                    v.pilotId = pilot_id
+                    cursor.execute("""INSERT OR IGNORE INTO victories (id, pilotId, date, time, missionId, enemyType, victoryType, location, confirmed, witnesses, notes, source_file) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                   (v.id, v.pilotId, v.date, v.time, v.missionId, v.enemyType, v.victoryType, v.location, int(v.confirmed), v.witnesses, v.notes, v.source_file))
+                    added_v += cursor.rowcount
+
+                for d in decorations:
+                    d.pilotId = pilot_id
+                    cursor.execute("""INSERT OR IGNORE INTO decorations (id, pilotId, name, date, citation, source_file) VALUES (?,?,?,?,?,?)""",
+                                   (d.id, d.pilotId, d.name, d.date, d.citation, d.source_file))
+                    added_d += cursor.rowcount
+
+                if wingmen:
+                    for w in wingmen:
+                        w.pilotId = pilot_id
+                        cursor.execute("""INSERT OR IGNORE INTO squad_members (id, pilotId, rank, fName, sName, skill, morale, status, missions, flminutes, bio) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                                       (w.id, w.pilotId, w.rank, w.fName, w.sName, w.skill, w.morale, w.status, w.missions, w.flminutes, w.bio))
+                        added_w += cursor.rowcount
+
+                if added_m or added_v or added_d or added_w:
+                    log.info(f"  + {added_m} missões, {added_v} vitórias, {added_d} condecorações, {added_w} wingmen inseridos.")
+
+                cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)", (datetime.now().isoformat(),))
+                conn.commit()
+                return True
+            except Exception as e:
+                log.error(f"Erro ao escrever na base de dados: {e}")
+                conn.rollback()
+                return False
             finally:
                 conn.close()
 
@@ -258,171 +301,20 @@ class DatabaseManager:
                 return None
             finally:
                 conn.close()
-                
-    def merge_and_write(self,
-                        pilot:       Optional[WoFFPilot],
-                        missions:    List[WoFFMission],
-                        victories:   List[WoFFVictory],
-                        decorations: List[WoFFDecoration],
-                        wingmen:     Optional[List[WoFFWingman]] = None) -> bool:
-        """Faz o merge dos novos dados na base de dados SQLite."""
-        with self._lock:
-            conn = self._get_conn()
-            try:
-                cursor = conn.cursor()
-                pilot_id = ""
-
-                # ── Processar Piloto (UPSERT) ──
-                if pilot:
-                    # 1. Procura pelo Nome real (vindo do Dossier)
-                    cursor.execute("SELECT id FROM pilots WHERE name = ?", (pilot.name,))
-                    row = cursor.fetchone()
-                    
-                    # 2. FIX: Se não encontrar e for um "Pilot X" genérico, procura pelo ID no source_file.
-                    # Usa GLOB com [A-Za-z] para garantir que Pilot1 não faz match com Pilot10.
-                    if not row and re.match(r"^Pilot \d+$", pilot.name):
-                        pilot_num_match = re.match(r"^Pilot (\d+)$", pilot.name)
-                        if pilot_num_match:
-                            pilot_num = pilot_num_match.group(1)
-                            glob_pattern = f"Pilot{pilot_num}[A-Za-z]*.txt"
-                            cursor.execute("SELECT id FROM pilots WHERE source_file GLOB ?", (glob_pattern,))
-                            row = cursor.fetchone()
-
-                    if row:
-                        pilot_id = row[0]
-                        cursor.execute("""
-                            UPDATE pilots SET name=?, fName=?, sName=?, nation=?, rank=?, squadron=?, aircraft=?, aerodrome=?, 
-                            sector=?, startDate=?, status=?, notes=?, photo=?, birthDate=?, birthPlace=?, missions=?, 
-                            flminutes=?, claimsCount=?, killsCount=?, skill=?, reputation=?, source_file=?, last_updated=?
-                            WHERE id=?
-                        """, (pilot.name, pilot.fName, pilot.sName, pilot.nation, pilot.rank, pilot.squadron, pilot.aircraft, 
-                              pilot.aerodrome, pilot.sector, pilot.startDate, pilot.status, pilot.notes, pilot.photo, 
-                              pilot.birthDate, pilot.birthPlace, pilot.missions, pilot.flminutes, pilot.claimsCount, 
-                              pilot.killsCount, pilot.skill, pilot.reputation, pilot.source_file, pilot.last_updated, pilot_id))
-                        log.info(f"  Piloto atualizado na DB: {pilot.name}")
-                    else:
-                        pilot_id = pilot.id
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO pilots (id, name, fName, sName, nation, rank, squadron, aircraft, aerodrome, 
-                            sector, startDate, status, notes, photo, birthDate, birthPlace, missions, flminutes, claimsCount, 
-                            killsCount, skill, reputation, source_file, last_updated)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                        """, (pilot.id, pilot.name, pilot.fName, pilot.sName, pilot.nation, pilot.rank, pilot.squadron, pilot.aircraft, 
-                              pilot.aerodrome, pilot.sector, pilot.startDate, pilot.status, pilot.notes, pilot.photo, 
-                              pilot.birthDate, pilot.birthPlace, pilot.missions, pilot.flminutes, pilot.claimsCount, 
-                              pilot.killsCount, pilot.skill, pilot.reputation, pilot.source_file, pilot.last_updated))
-                        log.info(f"  Novo piloto adicionado à DB: {pilot.name}")
-                else:
-                    # Se for TXT sem piloto, tenta adivinhar pelo pilotId das missões
-                    pilot_id = next((m.pilotId for m in missions if m.pilotId), "")
-                    if not pilot_id:
-                        log.warning("  Ficheiro de debrief sem piloto associado. Ignorado.")
-                        return False
-
-                # ── Processar Missões (INSERT OR IGNORE para deduplicar) ──
-                added_m = 0
-                for m in missions:
-                    m.pilotId = pilot_id
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO missions (id, pilotId, date, time, missionType, aircraft, duration, altitude, 
-                        sector, weather, enemyContacts, claimsCount, result, damageReceived, woundsReceived, notes, source_file)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    """, (m.id, m.pilotId, m.date, m.time, m.missionType, m.aircraft, m.duration,
-                          m.altitude, m.sector, m.weather, m.enemyContacts, m.claimsCount, m.result, 
-                          int(m.damageReceived), int(m.woundsReceived), m.notes, m.source_file))
-                    added_m += cursor.rowcount
-
-                # ── Processar Vitórias ──
-                added_v = 0
-                for v in victories:
-                    v.pilotId = pilot_id
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO victories (id, pilotId, date, time, missionId, enemyType, 
-                        victoryType, location, confirmed, witnesses, notes, source_file)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                    """, (v.id, v.pilotId, v.date, v.time, v.missionId, v.enemyType,
-                          v.victoryType, v.location, int(v.confirmed), v.witnesses, v.notes, v.source_file))
-                    added_v += cursor.rowcount
-
-                # ── Processar Condecorações ──
-                added_d = 0
-                for d in decorations:
-                    d.pilotId = pilot_id
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO decorations (id, pilotId, name, date, citation, source_file)
-                        VALUES (?,?,?,?,?,?)
-                    """, (d.id, d.pilotId, d.name, d.date, d.citation, d.source_file))
-                    added_d += cursor.rowcount
-
-                # ── Processar Membros do Esquadrão (AI Wingmen) ──
-                added_w = 0
-                if wingmen:
-                    for w in wingmen:
-                        w.pilotId = pilot_id
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO squad_members (id, pilotId, rank, fName, sName, 
-                            skill, morale, status, missions, flminutes, bio)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                        """, (w.id, w.pilotId, w.rank, w.fName, w.sName, 
-                              w.skill, w.morale, w.status, w.missions, w.flminutes, w.bio))
-                        added_w += cursor.rowcount
-
-                if added_m or added_v or added_d or added_w:
-                    log.info(f"  + {added_m} missões, {added_v} vitórias, {added_d} condecorações, {added_w} wingmen inseridos na DB.")
-
-                # Atualiza Metadados
-                cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", 
-                               ("last_updated", datetime.now().isoformat()))
-                cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", 
-                               ("schema_version", self.schema_version))
-
-                conn.commit()
-                return True
-                
-            except Exception as e:
-                log.error(f"Erro ao escrever na base de dados: {e}")
-                conn.rollback()
-                return False
-            finally:
-                conn.close()
-
-    # ──────────────────────────────────────────────────────────────
-    # MÉTODOS DA FASE 2 (RPG SYSTEM)
-    # ──────────────────────────────────────────────────────────────
 
     def get_mission_and_history(self, pilot_identifier: str, mission_id: str):
-        """
-        Busca o piloto, a missão EXATA (por ID) e o histórico das últimas 10 missões.
-        Retorna (pilot_dict, current_mission_dict, list_of_history_dicts).
-        """
+        """Busca o piloto, a missão EXATA e o histórico de missões."""
         with self._lock:
             conn = self._get_conn()
             conn.row_factory = sqlite3.Row
             try:
-                pilot = conn.execute(
-                    "SELECT * FROM pilots WHERE id = ? OR name = ?", 
-                    (pilot_identifier, pilot_identifier)
-                ).fetchone()
-                
-                if not pilot:
-                    return None, None, []
+                pilot = conn.execute("SELECT * FROM pilots WHERE id = ? OR name = ?", (pilot_identifier, pilot_identifier)).fetchone()
+                if not pilot: return None, None, []
                     
-                # Procura a missão EXATA que acabou de ser inserida
-                current_mission = conn.execute(
-                    "SELECT * FROM missions WHERE id = ? AND pilotId = ?", 
-                    (mission_id, pilot["id"])
-                ).fetchone()
-                
-                if not current_mission:
-                    # A missão ainda não foi commited na DB (Race Condition). Abortar.
-                    return dict(pilot), None, []
+                current_mission = conn.execute("SELECT * FROM missions WHERE id = ? AND pilotId = ?", (mission_id, pilot["id"])).fetchone()
+                if not current_mission: return dict(pilot), None, []
                     
-                # Busca o histórico para cálculo de RPG
-                history = conn.execute(
-                    "SELECT * FROM missions WHERE pilotId = ? ORDER BY date DESC LIMIT 10", 
-                    (pilot["id"],)
-                ).fetchall()
-                
+                history = conn.execute("SELECT * FROM missions WHERE pilotId = ? ORDER BY date DESC, time DESC LIMIT 10", (pilot["id"],)).fetchall()
                 return dict(pilot), dict(current_mission), [dict(m) for m in history]
             except Exception as e:
                 log.error(f"Erro ao buscar missão/histórico: {e}")
@@ -431,40 +323,25 @@ class DatabaseManager:
                 conn.close()
 
     def update_pilot_rpg_stats(self, pilot_id: str, fatigue: int, morale: int, stress: int):
-        """Atualiza ou insere o estado RPG do piloto na Base de Dados."""
         with self._lock:
             conn = self._get_conn()
             try:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO pilot_rpg_stats (pilotId, fatigue, morale, stress, last_updated)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(pilotId) DO UPDATE SET 
-                        fatigue=excluded.fatigue, 
-                        morale=excluded.morale, 
-                        stress=excluded.stress, 
-                        last_updated=excluded.last_updated
-                """, (pilot_id, fatigue, morale, stress, datetime.now().isoformat()))
+                conn.execute("""INSERT INTO pilot_rpg_stats (pilotId, fatigue, morale, stress, last_updated) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(pilotId) DO UPDATE SET fatigue=excluded.fatigue, morale=excluded.morale, stress=excluded.stress, last_updated=excluded.last_updated""",
+                    (pilot_id, fatigue, morale, stress, datetime.now().isoformat()))
                 conn.commit()
-                log.info(f"  🧠 RPG Stats atualizados: Fadiga:{fatigue} | Moral:{morale} | Stress:{stress}")
             except Exception as e:
                 log.error(f"Erro ao salvar RPG stats: {e}")
             finally:
                 conn.close()
 
     def save_diary_entry(self, pilot_id: str, mission_id: str, entry_date: str, narrative: str):
-        """Guarda uma entrada de diário gerada pela aplicação."""
         with self._lock:
             conn = self._get_conn()
             try:
-                cursor = conn.cursor()
-                entry_id = _uid()  # <--- CORRIGIDO: Usar a função centralizada do models.py
-                cursor.execute("""
-                    INSERT OR IGNORE INTO diary_entries (id, pilotId, missionId, entry_date, narrative)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (entry_id, pilot_id, mission_id, entry_date, narrative))
+                conn.execute("""INSERT OR IGNORE INTO diary_entries (id, pilotId, missionId, entry_date, narrative) VALUES (?, ?, ?, ?, ?)""",
+                    (_uid(), pilot_id, mission_id, entry_date, narrative))
                 conn.commit()
-                log.info(f"  📝 Diário de Bordo atualizado para a missão {mission_id}.")
             except Exception as e:
                 log.error(f"Erro ao salvar diário: {e}")
             finally:

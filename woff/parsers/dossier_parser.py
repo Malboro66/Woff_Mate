@@ -32,7 +32,6 @@ class WoFFDossierParser:
         """Gera a chave de cifra exatamente como o jogo faz (createkey)."""
         plainkey = "78CrztPRVzYQpYu90MnyW"
         
-        # Soma dos valores ASCII do nome do ficheiro
         soucet = sum(ord(c) for c in pName)
         sum_val = soucet % 128
         
@@ -94,20 +93,18 @@ class WoFFDossierParser:
                             fin_val = val ^ key_char  # Cifra XOR
                             decoded_line += chr(fin_val)
                         except ValueError:
-                            pass # Ignora hex inválido
+                            pass
                         
                         key_index += 1
                         if key_index == len(current_key):
                             key_index = 0
                         hex_buffer = ""
-                elif code != 32:  # Ignora espaços (32) que o Java força
+                elif code != 32:
                     hex_buffer += char
                     
-            # Inverte a chave para a próxima linha (reverse)
             current_key = current_key[::-1]
             player_data.append(decoded_line.strip())
 
-        # Mapeamento dos índices + Mapeamento Dinâmico (para robustez)
         if len(player_data) > 50:
             self.pilot = WoFFPilot()
             self.pilot.source_file = fname
@@ -116,7 +113,7 @@ class WoFFDossierParser:
             def safe_get(idx):
                 return player_data[idx] if len(player_data) > idx and player_data[idx] else ""
             
-            # Índices fixos para estatísticas (confirmados no Java)
+            # 1. Índices fixos para estatísticas (confirmados no Java)
             self.pilot.fName = safe_get(4)
             self.pilot.sName = safe_get(5)
             self.pilot.name = f"{self.pilot.fName} {self.pilot.sName}".strip()
@@ -133,18 +130,25 @@ class WoFFDossierParser:
             self.pilot.reputation = safe_get(52) if safe_get(52) else "0"
             self.pilot.birthPlace = safe_get(92)
             
+            # Extração do ID da Foto centralizada (Índice 100)
             photo_id = safe_get(100)
-            if photo_id and photo_id.isdigit(): self.pilot.photo = photo_id
+            if photo_id and photo_id.isdigit():
+                self.pilot.photo = photo_id
             
+            # Datas (Campanha e Alistamento)
             d, m, y = safe_get(6), safe_get(7), safe_get(8)
-            if d and m and y: self.pilot.startDate = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+            if d and m and y: 
+                self.pilot.startDate = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+            
             d, m, y = safe_get(12), safe_get(13), safe_get(14)
-            if d and m and y: self.pilot.enlisted = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
-
-            # FIX: Heurísticas com 'continue' e 'break' para não capturar o valor errado
+            if d and m and y: 
+                self.pilot.enlisted = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+            
+            # 2. Heurísticas Dinâmicas com 'break' (para não capturar valores errados)
             for s in player_data:
                 s_clean = s.strip()
-                if not s_clean: continue
+                if not s_clean:
+                    continue
                 
                 if not self.pilot.nation and s_clean in ("France", "Britain", "Germany", "USA", "Belgium"):
                     self.pilot.nation = s_clean
@@ -159,30 +163,27 @@ class WoFFDossierParser:
                     self.pilot.notes = s_clean
                     continue
             
-            # Extrair ID da Foto (Índice 100 - confirmado no código Java do Pilot Log Editor)
-            photo_id = safe_get(100)
-            if photo_id and photo_id.isdigit():
-                self.pilot.photo = photo_id
-            
-            # Datas (Campanha e Alistamento)
-            d, m, y = safe_get(6), safe_get(7), safe_get(8)
-            if d and m and y: 
-                self.pilot.startDate = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
-            
-            d, m, y = safe_get(12), safe_get(13), safe_get(14)
-            if d and m and y: 
-                self.pilot.enlisted = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
-            
-            # Guardar strings brutais para debug
             self.raw_strings = player_data
             
-            # ─── Extrair Membros do Esquadrão (AI Wingmen) ───
+            # 3. Extrair Membros do Esquadrão (AI Wingmen)
             self.wingmen = []
-            wingmen_ranks = ["Lieutenant", "Capitaine", "Caporal", "Sergent", "Sous", "Major", "Colonel", "Private", "Corporal", "Oberleutnant", "Leutnant"]
+            
+            # FIX: Lista de patentes expandida para cobrir Britânicos, Franceses e Alemães
+            wingmen_ranks = [
+                # British (RFC/RNAS/RAF)
+                "Lieutenant", "2nd Lieutenant", "Captain", "Major", "Colonel", 
+                "Flight Lieutenant", "Flight Sergeant", "Sergeant", "Corporal", 
+                "Private", "Air Mechanic",
+                # French
+                "Capitaine", "Sous-Lieutenant", "Adjudant", "Sergent", "Caporal", 
+                "Maréchal-des-logis", "Brigadier",
+                # German
+                "Hauptmann", "Oberleutnant", "Leutnant", "Rittmeister", 
+                "Vizefeldwebel", "Feldwebel", "Unteroffizier", "Gefreiter"
+            ]
             
             for s in player_data:
                 s_clean = s.strip()
-                # Uma string de wingman começa com uma patente e tem vários ';'
                 if ";" in s_clean and len(s_clean) > 20 and any(s_clean.startswith(rank) for rank in wingmen_ranks):
                     parts = [p.strip() for p in s_clean.split(";")]
                     if len(parts) >= 6:
@@ -194,24 +195,21 @@ class WoFFDossierParser:
                         w.morale = parts[4] if len(parts) > 4 else "0"
                         w.status = parts[5] if len(parts) > 5 else "Active"
                         
-                        # Procurar biografia (costuma estar após muitos números, mas antes da data de nascimento)
                         for part in parts:
                             if "pilot" in part.lower() or "observer" in part.lower() or "outlook" in part.lower():
                                 w.bio = part
                                 break
                         
-                        # Extrair Minutos de Voo se existirem no índice esperado (12)
                         if len(parts) > 12 and parts[12].isdigit():
                             w.flminutes = parts[12]
                             
                         self.wingmen.append(w)
 
-            # ─── Extrair Medalhas Recebidas (Índices 19 a 26) ───
+            # 4. Extrair Medalhas Recebidas (Índices 19 a 26)
             self.decorations = []
             for i in range(19, 27):
                 medal_str = safe_get(i)
                 if medal_str and medal_str.lower() != "null":
-                    # O formato pode ser "NomeDaMedalha;Data" ou apenas "NomeDaMedalha"
                     parts = medal_str.split(";")
                     medal_name = parts[0].strip()
                     if medal_name:
