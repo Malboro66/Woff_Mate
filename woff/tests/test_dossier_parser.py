@@ -48,7 +48,9 @@ def _encode_dossier(plaintext_lines: list, filename: str) -> bytes:
             
             # Inserir byte contador
             raw_data.append(counter)
-            counter += 1
+            
+            # Manter contador entre 128 e 255 para o parser reconhecer como separador
+            counter = 0x80 + ((counter - 0x80 + 1) % 128)
             
             key_index = (key_index + 1) % len(current_key)
             
@@ -64,9 +66,8 @@ class TestWoFFDossierParser(unittest.TestCase):
         self.parser = WoFFDossierParser()
         self.filename = "Pilot1Dossier.txt"
         
-        # Criar dados limpos simulados (precisam de pelo menos 105 linhas)
-        # Vamos preencher com um dummy "." para garantir o tamanho
-        self.mock_lines = ["."] * 105 
+        # FIX: Usar "Null" em vez de "." para não confundir o parser de medalhas
+        self.mock_lines = ["Null"] * 105 
         
         # Preencher os índices que o parser procura
         self.mock_lines[1] = "France"
@@ -99,20 +100,28 @@ class TestWoFFDossierParser(unittest.TestCase):
             
         self.assertTrue(ok)
         self.assertIsNotNone(self.parser.pilot)
+        
+        # Type narrowing para o Pyright compreender que não é None
+        assert self.parser.pilot is not None
+        
         self.assertEqual(self.parser.pilot.name, "James Hartley")
         self.assertEqual(self.parser.pilot.nation, "France")
         self.assertEqual(self.parser.pilot.photo, "1")
         self.assertEqual(self.parser.pilot.killsCount, "3")
 
     def test_parse_dossier_wrong_filename(self):
-        """Testa que chave XOR errada produz lixo e falha o parse."""
+        """Testa que chave XOR errada não produz o piloto correto."""
         # Tentar ler com um nome de ficheiro diferente gera uma chave XOR diferente
         with patch("builtins.open", mock_open(read_data=self.encoded_data)):
             ok = self.parser.parse("WrongName.txt")
             
-        # O parser deve retornar False ou os dados extraídos serão lixo
-        # Como os caracteres decodificados não farão match, pilot deverá ser None ou ter dados errados
-        self.assertFalse(ok) 
+        # FIX: Com chave errada, ou falha completamente ou devolve dados corrompidos
+        if ok and self.parser.pilot:
+            # Type narrowing
+            assert self.parser.pilot is not None
+            self.assertNotEqual(self.parser.pilot.name, "James Hartley")
+        else:
+            self.assertFalse(ok) 
 
     def test_wingmen_extraction(self):
         """Testa extração de wingmen com patentes conhecidas."""

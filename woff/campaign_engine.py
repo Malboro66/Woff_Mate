@@ -19,7 +19,14 @@ class CampaignEngine:
         log.info(f"[RPG] A processar fim de missão para o piloto {pilot_id}...")
         
         # 1. Buscar dados de forma segura (Piloto, Missão Exata, Histórico)
-        pilot_dict, current_mission, m_list = self.db_manager.get_mission_and_history(pilot_id, mission_id)
+        db_result = self.db_manager.get_mission_and_history(pilot_id, mission_id)
+        
+        # FIX: Validar o contrato antes do desempacotamento para evitar crashes
+        if not db_result or not isinstance(db_result, tuple) or len(db_result) != 3:
+            log.error("DatabaseManager.get_mission_and_history retornou um formato inesperado. Abortando RPG.")
+            return
+            
+        pilot_dict, current_mission, m_list = db_result
         
         # FIX: Se a missão não estiver na DB (race condition), abortamos em vez de adivinhar.
         if not pilot_dict or not current_mission:
@@ -28,12 +35,12 @@ class CampaignEngine:
             
         real_pilot_id = pilot_dict["id"]
         
-        # 2. Calcular Stats RPG (Usa o histórico)
+        # 2. Calcular Stats RPG
         fatigue = rpg_system.calculate_fatigue(m_list)
         morale = rpg_system.calculate_morale(m_list, pilot_dict.get("status", "Active"))
         stress = rpg_system.calculate_stress(m_list)
         
-        # 3. Guardar Stats RPG
+        # 3. Guardar Stats RPG (O DatabaseManager trata do Lock)
         self.db_manager.update_pilot_rpg_stats(real_pilot_id, fatigue, morale, stress)
         
         # 4. Gerar Narrativa (Usa os dados da missão EXATA)

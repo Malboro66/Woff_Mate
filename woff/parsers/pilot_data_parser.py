@@ -23,8 +23,6 @@ class WoFFPilotDataParser:
         pilot_match = re.match(r"(pilot\d+)", fname, re.I)
         if not pilot_match: return False
         
-        # FIX: O pilot_name aqui é apenas um placeholder ("Pilot 1"). 
-        # O database.py vai tratá-lo e associá-lo ao nome real vindo do Dossier.
         pilot_name = pilot_match.group(1).replace("pilot", "Pilot ")
         
         if "squads" in fname: return self._parse_squads(path, pilot_name)
@@ -38,8 +36,7 @@ class WoFFPilotDataParser:
             with open(path, "r", encoding="cp1252", errors="replace") as f: lines = f.readlines()
             if not lines: return False
             p = WoFFPilot()
-            # FIX: Não usar pilot_name ("Pilot 1") para não sobrescrever o nome real na DB.
-            # Deixar vazio para que o COALESCE no database.py mantenha o nome real.
+            p.name = pilot_name
             p.source_file = os.path.basename(path)
             parts = [part.strip() for part in lines[-1].strip().split(";")]
             if len(parts) >= 12:
@@ -65,11 +62,8 @@ class WoFFPilotDataParser:
                     m.source_file = os.path.basename(path)
                     m.pilotId = pilot_name
                     m.date = normalize_date(f"{parts[0].replace('/', '')}/{parts[1].replace('/', '')}/{parts[2]}")
-                    
-                    # FIX: Extrair a hora da missão para deduplicação correta
                     if len(parts) > 4:
                         m.time = f"{parts[3].replace('h','').zfill(2)}:{parts[4].zfill(2)}"
-                    
                     m.sector = parts[5]
                     m.aircraft = parts[8] if len(parts) > 8 else ""
                     m.missionType = normalize_mission_type(parts[7]) if len(parts) > 7 else ""
@@ -78,6 +72,11 @@ class WoFFPilotDataParser:
                     m.notes = parts[19][:500] if len(parts) > 19 else ""
                     m.result = "Shot Down — KIA" if "killed" in m.notes.lower() else "Crash Landing — Survived" if "crash" in m.notes.lower() else "Completed"
                     self.missions.append(m)
+            
+            # FIX: Criar placeholder pilot se não existir para que o handler e DB o possam usar
+            if not self.pilot:
+                self.pilot = WoFFPilot(name=pilot_name, source_file=os.path.basename(path))
+                
             return bool(self.missions)
         except Exception as e:
             log.error(f"  Falha ao ler {path}: {e}"); return False
@@ -103,6 +102,11 @@ class WoFFPilotDataParser:
                     v.confirmed = "confirmed" in parts[11].lower()
                     if len(parts) > 20: v.witnesses = f"{parts[18]} - {parts[19]} {parts[20]}".strip()
                     self.victories.append(v)
+                    
+            # FIX: Criar placeholder pilot se não existir
+            if not self.pilot:
+                self.pilot = WoFFPilot(name=pilot_name, source_file=os.path.basename(path))
+                
             return bool(self.victories)
         except Exception as e:
             log.error(f"  Falha ao ler {path}: {e}"); return False

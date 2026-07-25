@@ -187,13 +187,16 @@ class WoFFXMLParser:
                     self.missions.append(m)
 
     def _parse_mission_elem(self, elem: ET.Element) -> Optional[WoFFMission]:
-        """Extrai os dados de uma missão individual."""
         m = WoFFMission()
         raw_date = (
             elem.get("date") or elem.get("Date") or
             self._find(elem, "Date","MissionDate","Datum","date") or ""
         )
         m.date = normalize_date(raw_date)
+        
+        # FIX: Extrair a hora da missão para deduplicação correta
+        m.time = self._find(elem, "Time", "time", "Uhrzeit") or ""
+        
         if not m.date:
             return None
 

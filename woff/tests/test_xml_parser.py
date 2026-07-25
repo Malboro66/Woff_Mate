@@ -8,7 +8,10 @@ import xml.etree.ElementTree as ET
 from parsers.xml_parser import WoFFXMLParser
 from models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration
 
-# ... (Mocks e resto do código mantêm-se exatamente igual) ...
+
+# ──────────────────────────────────────────────────────────────
+# MOCK DATA
+# ──────────────────────────────────────────────────────────────
 
 MOCK_XML_VALID = """<?xml version="1.0" encoding="UTF-8"?>
 <Campaign>
@@ -27,11 +30,31 @@ MOCK_XML_VALID = """<?xml version="1.0" encoding="UTF-8"?>
   <Missions>
     <Mission>
       <Date>1917-04-06</Date>
+      <Time>10:30</Time>
       <Type>Offensive Patrol</Type>
       <Aircraft>SE.5a</Aircraft>
       <Duration>1.5</Duration>
       <Result>Major Engagement</Result>
       <Damage>0</Damage>
+      <Wounds>0</Wounds>
+    </Mission>
+    <!-- Missão Duplicada (Mesma data/hora/tipo/avião) -->
+    <Mission>
+      <Date>1917-04-06</Date>
+      <Time>10:30</Time>
+      <Type>Offensive Patrol</Type>
+      <Aircraft>SE.5a</Aircraft>
+      <Duration>1.5</Duration>
+      <Result>Major Engagement</Result>
+    </Mission>
+    <Mission>
+      <Date>1917-04-09</Date>
+      <Time>14:00</Time>
+      <Type>Artillery Observation</Type>
+      <Aircraft>SE.5a</Aircraft>
+      <Duration>2.0</Duration>
+      <Result>Aircraft Damaged (Returned)</Result>
+      <Damage>1</Damage>
       <Wounds>0</Wounds>
     </Mission>
   </Missions>
@@ -41,6 +64,13 @@ MOCK_XML_VALID = """<?xml version="1.0" encoding="UTF-8"?>
       <Time>10:35</Time>
       <EnemyType>Albatros D.III</EnemyType>
       <Type>Out of Control</Type>
+      <Confirmed>true</Confirmed>
+    </Victory>
+    <Victory>
+      <Date>1917-04-06</Date>
+      <Time>10:42</Time>
+      <EnemyType>Albatros D.III</EnemyType>
+      <Type>Destroyed</Type>
       <Confirmed>true</Confirmed>
     </Victory>
   </Victories>
@@ -94,89 +124,147 @@ class TestWoFFXMLParser(unittest.TestCase):
 
     def setUp(self):
         self.parser = WoFFXMLParser()
+        # Cria um ficheiro temporário para os testes
         self.tmp_file = tempfile.NamedTemporaryFile(
             mode="w", suffix=".xml", delete=False, encoding="utf-8"
         )
         
     def tearDown(self):
+        # Fecha e apaga o ficheiro temporário após cada teste
         self.tmp_file.close()
         if os.path.exists(self.tmp_file.name):
             os.unlink(self.tmp_file.name)
 
     def _write_and_parse(self, content: str) -> bool:
+        """Helper: Escreve no ficheiro temp e corre o parser."""
         self.tmp_file.write(content)
-        self.tmp_file.flush()
+        self.tmp_file.flush() # Garante que o conteúdo é escrito no disco
         return self.parser.parse(self.tmp_file.name)
 
+    # ── Testes de Sucesso ──
+
     def test_parse_valid_xml(self):
+        """Testa se um XML bem formado retorna True e popula os dados."""
         ok = self._write_and_parse(MOCK_XML_VALID)
         self.assertTrue(ok)
         self.assertIsNotNone(self.parser.pilot)
-        self.assertEqual(len(self.parser.missions), 1)
-        self.assertEqual(len(self.parser.victories), 1)
+        self.assertEqual(len(self.parser.missions), 3)
+        self.assertEqual(len(self.parser.victories), 2)
         self.assertEqual(len(self.parser.decorations), 1)
 
     def test_pilot_data_normalization(self):
+        """Testa se os dados do piloto são normalizados corretamente."""
         self._write_and_parse(MOCK_XML_VALID)
         p = self.parser.pilot
+        
+        # FIX: Type narrowing para o Pyright compreender que não é None
+        self.assertIsNotNone(p)
+        assert p is not None
         
         self.assertIsInstance(p, WoFFPilot)
         self.assertEqual(p.name, "James Percival Hartley")
         self.assertEqual(p.nation, "RFC")
         self.assertEqual(p.status, "Active")
-        self.assertEqual(p.startDate, "1917-04-01")
-        self.assertTrue(p.id)
+        self.assertEqual(p.startDate, "1917-04-01") # Já estava normalizado
+        self.assertTrue(p.id) # Tem de ter um ID gerado
 
     def test_mission_data_normalization(self):
+        """Testa a extração e normalização da missão."""
         self._write_and_parse(MOCK_XML_VALID)
+        # Testamos a primeira missão do Mock
         m = self.parser.missions[0]
         
         self.assertIsInstance(m, WoFFMission)
         self.assertEqual(m.date, "1917-04-06")
-        self.assertEqual(m.missionType, "Offensive Patrol (OP)")
+        self.assertEqual(m.time, "10:30")
+        self.assertEqual(m.missionType, "Offensive Patrol (OP)") # Normalizado
         self.assertEqual(m.result, "Major Engagement")
         self.assertFalse(m.damageReceived)
         self.assertFalse(m.woundsReceived)
 
     def test_victory_data_normalization(self):
+        """Testa a extração e normalização da vitória."""
         self._write_and_parse(MOCK_XML_VALID)
+        # Testamos a primeira vitória do Mock
         v = self.parser.victories[0]
         
         self.assertIsInstance(v, WoFFVictory)
         self.assertEqual(v.date, "1917-04-06")
         self.assertEqual(v.time, "10:35")
         self.assertEqual(v.enemyType, "Albatros D.III")
-        self.assertEqual(v.victoryType, "Out of Control (OOC)")
+        self.assertEqual(v.victoryType, "Out of Control (OOC)") # Normalizado
         self.assertTrue(v.confirmed)
 
     def test_decoration_date_normalization(self):
+        """Testa se a data da condecoração é normalizada para ISO 8601."""
         self._write_and_parse(MOCK_XML_VALID)
         d = self.parser.decorations[0]
         
         self.assertIsInstance(d, WoFFDecoration)
         self.assertEqual(d.name, "Military Cross (MC)")
-        self.assertEqual(d.date, "1917-04-15")
+        self.assertEqual(d.date, "1917-04-15") # Normalizado de "April 15, 1917"
+
+    # ── Testes de Normalização de Status ──
 
     def test_status_kia_normalization(self):
+        """Testa se 'Killed in Action' vira 'KIA'."""
         self._write_and_parse(MOCK_XML_KIA)
+        
+        # FIX: Type narrowing para o Pyright compreender que não é None
+        self.assertIsNotNone(self.parser.pilot)
+        assert self.parser.pilot is not None
+        
         self.assertEqual(self.parser.pilot.status, "KIA")
         self.assertEqual(self.parser.pilot.nation, "American")
 
     def test_status_severe_wound_normalization(self):
+        """Testa se 'In Hospital' + 'Serious' vira 'Seriously Wounded'."""
         self._write_and_parse(MOCK_XML_WOUNDED)
+        
+        # FIX: Type narrowing para o Pyright compreender que não é None
+        self.assertIsNotNone(self.parser.pilot)
+        assert self.parser.pilot is not None
+        
         self.assertEqual(self.parser.pilot.status, "Seriously Wounded")
         self.assertEqual(self.parser.pilot.nation, "RNAS")
 
+    # ── Testes de Falha / Edge Cases ──
+
     def test_parse_invalid_xml(self):
+        """Testa se um XML corrompido retorna False e loga o erro."""
         ok = self._write_and_parse(MOCK_XML_INVALID)
         self.assertFalse(ok)
         self.assertIsNone(self.parser.pilot)
 
     def test_parse_xml_without_pilot(self):
+        """Testa se um XML sem a tag PilotName retorna False (sem fallback para nome do ficheiro)."""
         ok = self._write_and_parse(MOCK_XML_NO_PILOT)
+        # FIX: O parser agora deve rejeitar XMLs sem PilotName para evitar pilotos fantasmas
         self.assertFalse(ok)
         self.assertIsNone(self.parser.pilot)
         self.assertEqual(len(self.parser.missions), 0)
+        
+    def test_parse_multiple_missions_victories(self):
+        """Testa extração de múltiplas missões e vitórias (incluindo duplicadas no XML)."""
+        ok = self._write_and_parse(MOCK_XML_VALID)
+        self.assertTrue(ok)
+        
+        # O Parser deve extrair TODOS os elementos do XML (3 missões, 2 vitórias)
+        # A deduplicação será responsabilidade do DatabaseManager
+        self.assertEqual(len(self.parser.missions), 3)
+        self.assertEqual(len(self.parser.victories), 2)
+        self.assertEqual(len(self.parser.decorations), 1)
+        
+        # Verifica se a segunda missão foi lida corretamente (a duplicada)
+        m2 = self.parser.missions[1]
+        self.assertEqual(m2.date, "1917-04-06")
+        self.assertEqual(m2.time, "10:30") # Hora extraída
+        
+        # Verifica a terceira missão (única)
+        m3 = self.parser.missions[2]
+        self.assertEqual(m3.date, "1917-04-09")
+        self.assertEqual(m3.missionType, "Artillery Observation (Art.Obs.)")
+
 
 if __name__ == "__main__":
     unittest.main()

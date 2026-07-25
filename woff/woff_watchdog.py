@@ -12,6 +12,7 @@ Melhorias v2.2:
 - Procura dinâmica das pastas Medals e Scratchpad em todos os caminhos.
 - Correção do roteamento de ficheiros .log no modo --parse-file.
 - Debounce de eventos para evitar processamento duplicado.
+- Null-safety rigorosa para aprovação em analisadores estáticos (Pyright).
 
 Modos de uso:
   Normal:       python woff/woff_watchdog.py
@@ -29,7 +30,7 @@ import glob
 import argparse
 import logging
 import threading
-from typing import Optional, List
+from typing import Optional, List, Any
 
 # ──────────────────────────────────────────────────────────────
 # CONFIGURAÇÃO DE CAMINHO (Garante que os módulos são encontrados)
@@ -87,7 +88,8 @@ class WoFFWatchdog:
         self.db_manager = DatabaseManager(config.export_path, config.export_schema_version)
         self.discovery = DiscoveryLogger(config.discovery_log_path) if discovery else None
         self.pilot_id  = pilot_id
-        self.observers: List[Observer] = []
+        # FIX: Usar Any para evitar conflitos de tipagem do Pyright com watchdog.Observer
+        self.observers: List[Any] = []
         self._handler: Optional[WoFFEventHandler] = None
         self._stop_event = threading.Event()
 
@@ -142,15 +144,24 @@ class WoFFWatchdog:
                         if "dossier" in fname:
                             parser = WoFFDossierParser()
                             if parser.parse(file_path):
+                                # FIX: Null-safety check para parser.pilot
+                                if not parser.pilot: continue
+                                    
                                 old_status, old_rank = self.db_manager.get_pilot_state(parser.pilot.name)
                                 self.db_manager.merge_and_write(
                                     pilot=parser.pilot, missions=[], victories=[],
                                     decorations=parser.decorations, wingmen=parser.wingmen
                                 )
-                                new_status, new_rank = parser.pilot.status, parser.pilot.rank
-                                if (old_status != new_status) or (old_rank != new_rank and new_rank):
+                                new_status = parser.pilot.status
+                                new_rank = parser.pilot.rank
+                                
+                                # FIX: Tratar os retornos Optional[str] do get_pilot_state
+                                old_status_str = old_status if old_status is not None else ""
+                                old_rank_str = old_rank if old_rank is not None else ""
+                                
+                                if (old_status_str != new_status) or (old_rank_str != new_rank and new_rank):
                                     self.campaign_engine.process_life_events(
-                                        parser.pilot.name, new_status, new_rank, old_status, old_rank
+                                        parser.pilot.name, new_status, new_rank, old_status_str, old_rank_str
                                     )
                         elif "squads" in fname:
                             parser = WoFFPilotDataParser()
@@ -165,6 +176,7 @@ class WoFFWatchdog:
                                     pilot=parser.pilot, missions=parser.missions, 
                                     victories=[], decorations=[]
                                 )
+                                # FIX: Null-safety check para parser.pilot
                                 if parser.missions and parser.pilot and parser.pilot.name:
                                     self.campaign_engine.process_mission_end(
                                         parser.pilot.name, parser.missions[0].id
@@ -291,7 +303,9 @@ def run_parse_file(file_path: str):
                 if m:
                     log.info(f"Data: {m.date} | Tempo: {m.weather}")
                     log.info(f"Aeronave do Jogador: {m.aircraft}")
-                    log.info(f"Esquadrão: {parser.pilot.squadron} ({parser.pilot.nation})")
+                    # FIX: Null-safety check para parser.pilot
+                    if parser.pilot:
+                        log.info(f"Esquadrão: {parser.pilot.squadron} ({parser.pilot.nation})")
                     
                 log.info("\n--- 👥 MEMBROS DO ESQUADRÃO (Flight) ---")
                 for member in parser.squad_members:

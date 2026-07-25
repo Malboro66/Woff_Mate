@@ -21,7 +21,6 @@ def get_woff_install_path() -> Optional[str]:
     """
     Procura no Registo do Windows (HKEY_CURRENT_USER) o caminho de 
     instalação do WoFF BHaH II.
-    Retorna o caminho (ex: 'A:\OBDSoftware\WOFF\OBDWW1 Over Flanders Fields') ou None.
     """
     try:
         import winreg

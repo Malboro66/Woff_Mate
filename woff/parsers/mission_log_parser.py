@@ -11,7 +11,7 @@ import os
 import re
 import logging
 import xml.etree.ElementTree as ET
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from models import WoFFMission, WoFFPilot
 from normalization import normalize_date, normalize_coordinates
 
@@ -21,10 +21,11 @@ class WoFFMissionLogParser:
     def __init__(self):
         self.mission: Optional[WoFFMission] = None
         self.pilot: Optional[WoFFPilot] = None
-        self.squad_members: List[str] = []
-        self.flight_plan: List[str] = []
         self.briefing: str = ""
         self.debriefing: str = ""
+        self.squad_members: List[str] = []
+        # FIX: Atualizar a tipagem para aceitar dicionários (usado na Fase 3 para mapas)
+        self.flight_plan: List[Dict[str, Any]] = []
 
     def parse(self, path: str) -> bool:
         log.info(f"[LOG] Analisando Log de Missão: {os.path.basename(path)}")
@@ -53,7 +54,7 @@ class WoFFMissionLogParser:
         params = root.find("Params")
         if params is None:
             log.warning("  Tag <Params> não encontrada no XML do log. Abortando parse.")
-            return False  # <--- FIX: Abortar logo aqui se não houver Params
+            return False
             
         date_str = params.get("Date", "") # Formato: 9/20/1915
         self.mission = WoFFMission()
@@ -68,22 +69,25 @@ class WoFFMissionLogParser:
             self.briefing = overview.text.strip()
 
         # 3. Encontrar a formação do jogador e membros do esquadrão
+        # FIX: Inicializar player_unit como None para evitar 'possibly unbound'
+        player_unit: Optional[ET.Element] = None
         for formation in root.findall("AirFormation"):
-            is_player_formation = False
             for unit in formation.findall("Unit"):
                 if unit.get("IsPlayer") == "y":
-                    is_player_formation = True
+                    player_unit = unit
                     break
 
-            if is_player_formation:
+            # Se encontramos a unidade do jogador nesta formação
+            if player_unit is not None:
                 self.pilot = WoFFPilot()
                 self.pilot.nation = formation.get("Country", "")
                 self.pilot.squadron = formation.get("SquadName", "")
                 
                 if self.mission:
                     self.mission.sector = self.pilot.squadron
-                    self.mission.aircraft = unit.get("Type", "")
+                    self.mission.aircraft = player_unit.get("Type", "")
                     
+                # Extrai membros do esquadrão (AI)
                 for u in formation.findall("Unit"):
                     ac_type = u.get("Type", "")
                     fname = u.get("PilotFirstName", "")
@@ -94,6 +98,7 @@ class WoFFMissionLogParser:
                     else:
                         self.squad_members.append(f"{role}: [Player] ({ac_type})")
                     
+                # Extrai Plano de Voo (Waypoints) com Coordenadas Decimais
                 route = formation.find("Route")
                 if route is not None:
                     for wp in route.findall("Waypoint"):
@@ -102,15 +107,20 @@ class WoFFMissionLogParser:
                         lat_raw = wp.get("Lat", "")
                         lon_raw = wp.get("Lon", "")
                         
+                        # Converte as coordenadas para decimal
                         lat_dec = normalize_coordinates(lat_raw)
                         lon_dec = normalize_coordinates(lon_raw)
                         
+                        # Guarda como dicionário para a Fase 3 (Mapas)
                         self.flight_plan.append({
-                            "type": wp_type, "altitude": alt,
-                            "lat": lat_dec, "lon": lon_dec,
-                            "raw_lat": lat_raw, "raw_lon": lon_raw
+                            "type": wp_type,
+                            "altitude": alt,
+                            "lat": lat_dec,
+                            "lon": lon_dec,
+                            "raw_lat": lat_raw,
+                            "raw_lon": lon_raw
                         })
-                break
+                break # Já processámos a formação do jogador, podemos sair do ciclo
 
         # 4. Extrair Debriefing do texto pós-XML
         text_after_xml = content[xml_match.end():]

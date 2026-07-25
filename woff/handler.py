@@ -58,7 +58,7 @@ class WoFFEventHandler(FileSystemEventHandler):
     def __init__(self, config, db_manager: DatabaseManager, campaign_engine: CampaignEngine, discovery=None, pilot_id: Optional[str] = None):
         self.config    = config
         self.db_manager = db_manager
-        self.campaign_engine = campaign_engine # Recebido por injeção de dependência
+        self.campaign_engine = campaign_engine
         self.discovery = discovery
         self.pilot_id  = pilot_id
         
@@ -73,11 +73,12 @@ class WoFFEventHandler(FileSystemEventHandler):
 
     def on_modified(self, event):
         if not event.is_directory:
-            self._handle(event.src_path, "modified")
+            # FIX: Garantir que o caminho é string (watchdog pode enviar bytes em alguns SOs)
+            self._handle(str(event.src_path), "modified")
 
     def on_created(self, event):
         if not event.is_directory:
-            self._handle(event.src_path, "created")
+            self._handle(str(event.src_path), "created")
 
     def _handle(self, path: str, event_type: str):
         bn  = os.path.basename(path).lower()
@@ -88,9 +89,6 @@ class WoFFEventHandler(FileSystemEventHandler):
         if any(p in bn for p in self.IGNORED):
             return
             
-        # FIX: Removido o Debounce temporizado. 
-        # O _inflight set previne processamento simultâneo, e a FileStabilityGuard 
-        # garante que lemos o estado final do ficheiro mesmo que o jogo escreva várias vezes rápido.
         with self._inflight_lock:
             if path in self._inflight:
                 return
@@ -102,17 +100,14 @@ class WoFFEventHandler(FileSystemEventHandler):
         try:
             log.info(f"Detectado [{event_type}]: {os.path.basename(path)}")
 
-            # 1. Aguardar que o ficheiro esteja completamente escrito
             if not self.guard.wait(path):
-                log.warning(f"Ignorado (ficheiro instável ou eliminado): {os.path.basename(path)}")
+                log.warning(f"Ignorado (ficheiro instável): {os.path.basename(path)}")
                 return
 
-            # 2. Se o modo descoberta estiver ativo, ler o conteúdo (agora seguro)
             if self.discovery:
                 if os.path.exists(path):
                     self.discovery.log_file(path, event_type)
 
-            # 3. Roteamento para o parser correto baseado no nome/extensão
             ext = os.path.splitext(path)[1].lower()
             if ext == ".xml":
                 self._do_xml(path)
@@ -141,6 +136,9 @@ class WoFFEventHandler(FileSystemEventHandler):
         if "dossier" in fname:
             parser = WoFFDossierParser()
             if parser.parse(path):
+                # FIX: Verificar se o piloto não é None antes de aceder aos atributos
+                if not parser.pilot: return
+                
                 old_status, old_rank = self.db_manager.get_pilot_state(parser.pilot.name)
                 self.db_manager.merge_and_write(
                     pilot=parser.pilot,
@@ -151,11 +149,19 @@ class WoFFEventHandler(FileSystemEventHandler):
                 )
                 new_status = parser.pilot.status
                 new_rank = parser.pilot.rank
-                if (old_status != new_status) or (old_rank != new_rank and new_rank):
-                    # FIX: Submeter ao pool para não bloquear a thread do watchdog
+                
+                # FIX: Tratar os retornos Optional[str] do get_pilot_state
+                old_status_str = old_status if old_status is not None else ""
+                old_rank_str = old_rank if old_rank is not None else ""
+                
+                if (old_status_str != new_status) or (old_rank_str != new_rank and new_rank):
                     self._pool.submit(
                         self.campaign_engine.process_life_events,
-                        parser.pilot.name, new_status, new_rank, old_status, old_rank
+                        parser.pilot.name, 
+                        str(new_status), 
+                        str(new_rank), 
+                        old_status_str, 
+                        old_rank_str
                     )
             return
             
@@ -172,17 +178,18 @@ class WoFFEventHandler(FileSystemEventHandler):
             
         parser = WoFFPilotDataParser()
         if parser.parse(path):
+            # FIX: Verificar se o piloto não é None antes de aceder aos atributos
+            if not parser.pilot: return
+            
             self.db_manager.merge_and_write(
                 pilot=parser.pilot,
                 missions=parser.missions, 
                 victories=parser.victories,
                 decorations=[]
             )
-            if parser.missions and parser.pilot and parser.pilot.name:
+            if parser.missions and parser.pilot.name:
                 pilot_name = parser.pilot.name
                 mission_id = parser.missions[0].id
-                
-                # FIX: Submeter ao pool para não bloquear a thread do watchdog
                 self._pool.submit(
                     self.campaign_engine.process_mission_end,
                     pilot_name, mission_id

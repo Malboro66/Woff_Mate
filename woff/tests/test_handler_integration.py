@@ -1,14 +1,10 @@
 import unittest
 import tempfile
 import threading
-import time
 import os
-import sys
 import shutil
 from unittest.mock import patch, MagicMock
 
-# Adicionar a pasta woff ao path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from config import WatchdogConfig
 from database import DatabaseManager
@@ -67,21 +63,36 @@ class TestHandlerIntegration(unittest.TestCase):
             shutil.rmtree(self.tmp_dir)
     
     def test_file_modified_event(self):
-        """Simula evento de modificação e verifica processamento assíncrono."""
+        """Simula evento de modificação e verifica processamento assíncrono determinístico."""
         xml_path = os.path.join(self.tmp_dir, "campaign.xml")
         
         # Escrever ficheiro real no disco
         with open(xml_path, "w", encoding="utf-8") as f:
             f.write(MOCK_XML_VALID)
         
-        # Simular evento do watchdog
         from watchdog.events import FileModifiedEvent
         event = FileModifiedEvent(xml_path)
+        
+        # FIX: Mecanismo de sinalização determinístico (sem time.sleep)
+        processed_event = threading.Event()
+        original_process = self.handler._process
+        
+        def signaled_process(path, event_type):
+            try:
+                original_process(path, event_type)
+            finally:
+                processed_event.set()
+                
+        self.handler._process = signaled_process
+        
+        # Disparar evento
         self.handler.on_modified(event)
         
-        # Aguardar que a thread pool processe o ficheiro
-        # (O guard.wait() vai passar rápido pois o ficheiro já está estagnado no disco)
-        time.sleep(0.5) 
+        # Aguardar que a thread sinalize que terminou (Timeout de 5s para CI)
+        self.assertTrue(processed_event.wait(timeout=5.0), "O processamento demorou demasiado tempo.")
+        
+        # Restaurar método original (boa prática)
+        self.handler._process = original_process
         self.handler.shutdown() # Força a conclusão das threads
         
         # Verificar se chegou à Base de Dados

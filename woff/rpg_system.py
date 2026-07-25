@@ -7,8 +7,8 @@ Calcula Fadiga, Moral, Stress e Progressão de Skill baseando-se
 no histórico de missões extraídas do jogo.
 ══════════════════════════════════════════════════════════════════
 """
-from datetime import datetime, timedelta
-from typing import List, Dict
+from datetime import datetime
+from typing import List, Dict, Any
 
 class RPGSystem:
     def __init__(self):
@@ -26,7 +26,13 @@ class RPGSystem:
             return 0
         
         fatigue = 0
-        today_str = missions[-1].get("date")
+        
+        # FIX: Procurar a data MAIS RECENTE na lista em vez de assumir o índice.
+        # O formato ISO 8601 (YYYY-MM-DD) permite comparação lexicográfica.
+        today_str = max(m.get("date", "") for m in missions)
+        if not today_str:
+            return 0
+            
         try:
             today = datetime.strptime(today_str, "%Y-%m-%d")
         except:
@@ -34,16 +40,16 @@ class RPGSystem:
 
         for m in missions:
             try:
-                m_date = datetime.strptime(m.get("date", ""), "%Y-%m-%d")
+                m_date_str = m.get("date", "")
+                if not m_date_str: continue
+                m_date = datetime.strptime(m_date_str, "%Y-%m-%d")
                 days_ago = (today - m_date).days
                 
                 # Missões nos últimos 3 dias causam fadiga
                 if 0 <= days_ago <= 3:
-                    # Se foi ferido, a fadiga é maior
                     is_wounded = m.get("woundsReceived", False)
                     fatigue += 25 if is_wounded else 15
                     
-                    # Se a aeronave foi danificada, soma um pouco
                     if m.get("damageReceived", False):
                         fatigue += 5
             except:
@@ -51,7 +57,7 @@ class RPGSystem:
                 
         return min(fatigue, self.MAX_FATIGUE)
 
-    def calculate_morale(self, missions: List[Dict], pilot_status: str) -> int:
+    def calculate_morale(self, missions: List[Dict[str, Any]], pilot_status: str) -> int:
         """
         Calcula a moral (0-100). 100 é o máximo.
         Regra: Começa em 75. Vitórias aumentam, mortes/baixas diminuem.
@@ -82,7 +88,9 @@ class RPGSystem:
         Regra: Baseado no número de contactos inimigos recentes e tempo de voo.
         """
         stress = 0
-        for m in missions[-5:]: # Últimas 5 missões
+        
+        # FIX: Como a lista vem ORDER BY date DESC, as 5 mais recentes estão no início [0:5]
+        for m in missions[:5]: 
             try:
                 contacts = int(m.get("enemyContacts", "0"))
                 stress += contacts * 4

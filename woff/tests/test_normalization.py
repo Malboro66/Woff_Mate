@@ -5,13 +5,11 @@ Testes Unitários para a Normalização (tests/test_normalization.py)
 """
 
 import os
-import sys
+
 import unittest
 import xml.etree.ElementTree as ET
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
 
 from normalization import (
     normalize_nation,

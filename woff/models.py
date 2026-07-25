@@ -25,6 +25,7 @@ class WoFFPilot:
     aerodrome:    str = ""
     sector:       str = ""
     startDate:    str = ""
+    enlisted:     str = "" 
     status:       str = "Active"
     notes:        str = ""
     photo:        str = ""
@@ -53,6 +54,7 @@ class WoFFMission:
     duration:       str  = ""
     altitude:       str  = ""
     sector:         str  = ""
+    squadron:       str  = ""
     weather:        str  = ""
     enemyContacts:  str  = "0"
     claimsCount:    str  = "0"
@@ -75,6 +77,8 @@ class WoFFVictory:
     confirmed:   bool = False
     witnesses:   str  = ""
     notes:       str  = ""
+    sector:      str  = ""
+    aircraft:    str  = ""
     source_file: str  = ""
 
 @dataclass

@@ -7,6 +7,7 @@ nos dados exatos extraídos da missão (clima, aeronaves, vitórias).
 ══════════════════════════════════════════════════════════════════
 """
 import logging
+from typing import Optional, Dict, Any
 
 log = logging.getLogger("WoFFWatch")
 
@@ -14,7 +15,7 @@ class NarrativeGenerator:
     def __init__(self):
         pass
 
-    def generate(self, pilot_name: str, mission_data: dict) -> str:
+    def generate(self, pilot_name: str, mission_data: Dict[str, Any]) -> str:
         """
         Gera uma narrativa baseada nos dados da missão.
         mission_data: dicionário com chaves como date, missionType, aircraft, etc.
@@ -40,7 +41,7 @@ class NarrativeGenerator:
         # 2. Ação (Contactos e Vitórias)
         contacts = mission_data.get("enemyContacts", "0")
         if contacts != "0" and contacts != "":
-            narrative += f"Encontrámos{contacts} aeronaves inimigas. "
+            narrative += f"Encontrámos {contacts} aeronaves inimigas. "
             if claims != "0":
                 enemy_text = f"um {enemy_type}" if enemy_type else "uma aeronave inimiga"
                 if claims == "1":
@@ -64,7 +65,7 @@ class NarrativeGenerator:
 
         return narrative
 
-    def generate_life_event(self, new_status: str, old_status: str, new_rank: str, old_rank: str) -> str:
+    def generate_life_event(self, new_status: str, old_status: Optional[str], new_rank: str, old_rank: Optional[str]) -> Optional[str]:
         """Gera texto para eventos de vida (ferimentos, promoções, etc.)"""
         event_text = ""
         
