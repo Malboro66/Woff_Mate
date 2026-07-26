@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 """
-WoFF BHaH II Watchdog v2.2
+WoFF BHaH II Watchdog v3.0
 ══════════════════════════════════════════════════════════════════
 Monitoriza os ficheiros de campanha do Wings over Flanders Fields:
 Between Heaven and Hell II e exporta dados de missões e pilotos
 em SQLite compatível com a aplicação WoFFBase.
 
-Melhorias v2.2:
-- Injeção de Dependências: CampaignEngine instanciado uma única vez.
-- Sincronização inicial suporta múltiplos pilotos (Pilot1, Pilot2, etc.).
-- Procura dinâmica das pastas Medals e Scratchpad em todos os caminhos.
-- Correção do roteamento de ficheiros .log no modo --parse-file.
-- Debounce de eventos para evitar processamento duplicado.
+Melhorias v3.0 (Fase 4 - Preparação para Empacotamento):
+- Graceful degradation: mensagens instrutivas se faltarem dependências.
 - Null-safety rigorosa para aprovação em analisadores estáticos (Pyright).
+- Procura dinâmica das pastas Medals e Scratchpad em todos os caminhos.
 
 Modos de uso:
   Normal:       python woff/woff_watchdog.py
-  Debug:        python woff/woff_watchdog.py --parse-file "caminho/para/ficheiro.txt"
+  Debug:      python woff/woff_watchdog.py --parse-file "caminho/para/ficheiro.txt"
   Descoberta:   python woff/woff_watchdog.py --discover
-  Ajuda:        python woff/woff_watchdog.py --help
+  Ajuda:      python woff/woff_watchdog.py --help
 ══════════════════════════════════════════════════════════════════
 """
 
@@ -44,8 +41,16 @@ if SCRIPT_DIR not in sys.path:
 # ──────────────────────────────────────────────────────────────
 try:
     from watchdog.observers import Observer
+except ImportError:
+    print(
+        "\n[ERRO] Falha ao carregar a biblioteca 'watchdog'.\n"
+        "Para corrigir, executa no terminal:\n"
+        "  pip install watchdog\n"
+    )
+    sys.exit(1)
 except Exception as e:
-    print(f"\n[ERRO] Falha ao importar a biblioteca 'watchdog': {type(e).__name__} - {e}\n")
+    print(f"\n[ERRO] Ocorreu um erro inesperado: {type(e).__name__} - {e}\n"
+          "Verifica a tua instalação do Python e do pacote 'watchdog'.")
     sys.exit(1)
 
 try:
@@ -62,8 +67,16 @@ try:
     from parsers.mission_log_parser import WoFFMissionLogParser
     from parsers.pilot_data_parser import WoFFPilotDataParser
     from parsers.dossier_parser import WoFFDossierParser
+except ImportError as e:
+    print(
+        f"\n[ERRO] Falha ao carregar módulos internos: {type(e).__name__} - {e}\n"
+        "Certifica-te que todos os ficheiros do projeto estão na pasta correta.\n"
+        "Se o problema persistir, reinstala as dependências:\n"
+        "  pip install watchdog pywin32\n"
+    )
+    sys.exit(1)
 except Exception as e:
-    print(f"\n[ERRO MODULOS] {type(e).__name__}: {e}\n")
+    print(f"\n[ERRO] Ocorreu um erro ao carregar os módulos: {type(e).__name__} - {e}")
     sys.exit(1)
 
 # ──────────────────────────────────────────────────────────────
@@ -88,7 +101,6 @@ class WoFFWatchdog:
         self.db_manager = DatabaseManager(config.export_path, config.export_schema_version)
         self.discovery = DiscoveryLogger(config.discovery_log_path) if discovery else None
         self.pilot_id  = pilot_id
-        # FIX: Usar Any para evitar conflitos de tipagem do Pyright com watchdog.Observer
         self.observers: List[Any] = []
         self._handler: Optional[WoFFEventHandler] = None
         self._stop_event = threading.Event()
@@ -144,10 +156,12 @@ class WoFFWatchdog:
                         if "dossier" in fname:
                             parser = WoFFDossierParser()
                             if parser.parse(file_path):
-                                # FIX: Null-safety check para parser.pilot
                                 if not parser.pilot: continue
                                     
                                 old_status, old_rank = self.db_manager.get_pilot_state(parser.pilot.name)
+                                
+                                self.campaign_engine.process_wingmen_changes(parser.pilot.name, parser.wingmen)
+                                
                                 self.db_manager.merge_and_write(
                                     pilot=parser.pilot, missions=[], victories=[],
                                     decorations=parser.decorations, wingmen=parser.wingmen
@@ -155,28 +169,26 @@ class WoFFWatchdog:
                                 new_status = parser.pilot.status
                                 new_rank = parser.pilot.rank
                                 
-                                # FIX: Tratar os retornos Optional[str] do get_pilot_state
                                 old_status_str = old_status if old_status is not None else ""
                                 old_rank_str = old_rank if old_rank is not None else ""
                                 
                                 if (old_status_str != new_status) or (old_rank_str != new_rank and new_rank):
                                     self.campaign_engine.process_life_events(
-                                        parser.pilot.name, new_status, new_rank, old_status_str, old_rank_str
+                                        parser.pilot.name, str(new_status), str(new_rank), old_status_str, old_rank_str
                                     )
                         elif "squads" in fname:
                             parser = WoFFPilotDataParser()
                             if parser.parse(file_path):
                                 self.db_manager.merge_and_write(
-                                    pilot=parser.pilot, missions=[], victories=[], decorations=[]
+                                    pilot=parser.pilot, missions=[], victories=[], decorations=[], wingmen=None
                                 )
                         elif "log" in fname and "mission" not in fname:
                             parser = WoFFPilotDataParser()
                             if parser.parse(file_path):
                                 self.db_manager.merge_and_write(
                                     pilot=parser.pilot, missions=parser.missions, 
-                                    victories=[], decorations=[]
+                                    victories=[], decorations=[], wingmen=None
                                 )
-                                # FIX: Null-safety check para parser.pilot
                                 if parser.missions and parser.pilot and parser.pilot.name:
                                     self.campaign_engine.process_mission_end(
                                         parser.pilot.name, parser.missions[0].id
@@ -186,14 +198,14 @@ class WoFFWatchdog:
                             if parser.parse(file_path):
                                 self.db_manager.merge_and_write(
                                     pilot=None, missions=[], 
-                                    victories=parser.victories, decorations=[]
+                                    victories=parser.victories, decorations=[], wingmen=None
                                 )
                     except Exception as e:
                         log.error(f"Erro ao sincronizar inicialmente {file_path}: {e}")
 
         # Injetar a mesma instância do CampaignEngine no Handler
         self._handler = WoFFEventHandler(
-            self.config, self.db_manager, self.campaign_engine, self.discovery, self.pilot_id
+            self.config, self.db_manager, self.campaign_engine, self.discovery
         )
 
         for path in valid:
@@ -284,7 +296,7 @@ def run_parse_file(file_path: str):
                 if parser.wingmen:
                     log.info("\n--- 👥 MEMBROS DO ESQUADRÃO (AI) ---")
                     for w in parser.wingmen:
-                        log.info(f"  -> {w.rank} {w.fName} {w.sName} (Skill: {w.skill}, Status: {w.status})")
+                        log.info(f"  -> {w.rank} {w.fName} {w.sName} (Skill: {w.skill}, Status: {w.status}")
                         if w.bio:
                             log.info(f"     Bio: {w.bio[:80]}...")
             else:
@@ -303,7 +315,6 @@ def run_parse_file(file_path: str):
                 if m:
                     log.info(f"Data: {m.date} | Tempo: {m.weather}")
                     log.info(f"Aeronave do Jogador: {m.aircraft}")
-                    # FIX: Null-safety check para parser.pilot
                     if parser.pilot:
                         log.info(f"Esquadrão: {parser.pilot.squadron} ({parser.pilot.nation})")
                     
@@ -351,9 +362,9 @@ def run_parse_file(file_path: str):
 # ──────────────────────────────────────────────────────────────
 
 BANNER = r"""
-╔══════════════════════════════════════════════════════════╗
-║      ✈  WoFF BHaH II — Watchdog  v2.2  ✈              ║
-║   Wings over Flanders Fields · SQLite Companion Sync    ║
+╔════════════════════════════════════════════════════════════╗
+║      ✈  WoFF BHaH II — Watchdog  v3.0  ✈                  ║
+║   Wings over Flanders Fields · SQLite Companion Sync          ║
 ╚══════════════════════════════════════════════════════════╝
 """
 

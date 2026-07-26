@@ -65,41 +65,37 @@ class TestHandlerIntegration(unittest.TestCase):
     def test_file_modified_event(self):
         """Simula evento de modificação e verifica processamento assíncrono determinístico."""
         xml_path = os.path.join(self.tmp_dir, "campaign.xml")
-        
+
         # Escrever ficheiro real no disco
         with open(xml_path, "w", encoding="utf-8") as f:
             f.write(MOCK_XML_VALID)
-        
+
         from watchdog.events import FileModifiedEvent
         event = FileModifiedEvent(xml_path)
-        
-        # FIX: Mecanismo de sinalização determinístico (sem time.sleep)
-        processed_event = threading.Event()
-        original_process = self.handler._process
-        
-        def signaled_process(path, event_type):
-            try:
-                original_process(path, event_type)
-            finally:
-                processed_event.set()
-                
-        self.handler._process = signaled_process
-        
-        # Disparar evento
-        self.handler.on_modified(event)
-        
-        # Aguardar que a thread sinalize que terminou (Timeout de 5s para CI)
-        self.assertTrue(processed_event.wait(timeout=5.0), "O processamento demorou demasiado tempo.")
-        
-        # Restaurar método original (boa prática)
-        self.handler._process = original_process
-        self.handler.shutdown() # Força a conclusão das threads
-        
-        # Verificar se chegou à Base de Dados
-        status, rank = self.db.get_pilot_state("James Percival Hartley")
-        self.assertIsNotNone(status)
-        self.assertEqual(status, "Active")
-    
+
+        # FIX: Mockar o pool para executar sincronamente, evitando race conditions
+        # e eliminando a necessidade de aceder a _process (atributo privado).
+        original_pool = self.handler._pool
+        self.handler._pool = MagicMock()
+
+        def sync_submit(fn, *args, **kwargs):
+            """Executa a tarefa imediatamente no thread principal."""
+            fn(*args, **kwargs)
+            return MagicMock()  # Future-like object
+
+        self.handler._pool.submit = sync_submit
+
+        try:
+            # Disparar evento — o processamento corre sincronamente
+            self.handler.on_modified(event)
+
+            # Verificar se chegou à Base de Dados
+            status, rank = self.db.get_pilot_state("James Percival Hartley")
+            self.assertIsNotNone(status)
+            self.assertEqual(status, "Active")
+        finally:
+            self.handler._pool = original_pool
+
     def test_inflight_debounce(self):
         """Testa que eventos rápidos duplicados são ignorados pelo set _inflight."""
         xml_path = os.path.join(self.tmp_dir, "campaign.xml")

@@ -1,6 +1,7 @@
 import unittest
 import sys
 import os
+from unittest.mock import patch
 
 # Adicionar a pasta woff ao path (caso o conftest.py não esteja configurado)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -11,7 +12,14 @@ class TestRPGSystem(unittest.TestCase):
     
     def setUp(self):
         self.rpg = RPGSystem()
+        # Garante que nenhum evento estocástico (aleatório) invalida os testes
+        # 1.0 desativa as variações de humor/ferimentos
+        self.mock_random = patch('rpg_system.random').start()
+        self.mock_random.random.return_value = 1.0
     
+    def tearDown(self):
+        patch.stopall()
+
     def test_fatigue_single_mission(self):
         """Testa fadiga de uma missão normal nos últimos 3 dias."""
         missions = [{"date": "1917-04-06", "woundsReceived": False, "damageReceived": False}]
@@ -32,12 +40,10 @@ class TestRPGSystem(unittest.TestCase):
 
     def test_fatigue_old_mission_ignored(self):
         """Testa que missões antigas (>3 dias) não geram fadiga."""
-        # FIX: Adicionar uma missão recente para servir de âncora (hoje)
         missions = [
             {"date": "1917-04-06", "woundsReceived": False, "damageReceived": False},  # Hoje
             {"date": "1917-01-01", "woundsReceived": False, "damageReceived": False},  # Antiga
         ]
-        # Só a de 06-04 conta (15). A de Janeiro está fora da janela de 3 dias.
         self.assertEqual(self.rpg.calculate_fatigue(missions), 15)
     
     def test_morale_victory_boost(self):

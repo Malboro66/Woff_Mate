@@ -5,9 +5,9 @@ Gestor de Base de Dados (database.py)
 Responsável por armazenar e gerir os dados extraídos dos ficheiros
 do WoFF BHaH II usando SQLite.
 
-Inclui tabelas para dados do jogo (Pilotos, Missões, etc.) e 
-tabelas para a camada de RPG gerada pela nossa aplicação 
-(Estados RPG, Diário de Bordo).
+Inclui tabelas para dados do jogo (Pilotos, Missões, etc.), 
+tabelas para a camada de RPG (Estados, Diário) e tabelas para 
+o Sistema 3P (Personalidades e Memória de Wingmen).
 ══════════════════════════════════════════════════════════════════
 """
 
@@ -20,7 +20,7 @@ import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Any
 
 from models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration, WoFFWingman, _uid
 
@@ -28,7 +28,7 @@ log = logging.getLogger("WoFFWatch")
 
 
 class DatabaseManager:
-    def __init__(self, db_path: str, schema_version: str = "2.2"):
+    def __init__(self, db_path: str, schema_version: str = "3.0"):
         self.db_path = Path(db_path)
         self.schema_version = schema_version
         self._lock = threading.RLock()  # SQLite precisa de controle de concorrência
@@ -158,6 +158,31 @@ class DatabaseManager:
                 id TEXT PRIMARY KEY, pilotId TEXT, missionId TEXT, entry_date TEXT, narrative TEXT,
                 FOREIGN KEY(pilotId) REFERENCES pilots(id), FOREIGN KEY(missionId) REFERENCES missions(id))""")
             
+            # Tabelas da Fase 3 (Sistema 3P - Personalidade e Memória de Wingmen)
+            cursor.execute("""CREATE TABLE IF NOT EXISTS wingmen_personalities (
+                wingmanId TEXT PRIMARY KEY, 
+                pilotId TEXT, 
+                aerial_skill INTEGER DEFAULT 50, 
+                aggression INTEGER DEFAULT 50, 
+                charisma INTEGER DEFAULT 50, 
+                intelligence INTEGER DEFAULT 50, 
+                physicality INTEGER DEFAULT 50, 
+                professionalism INTEGER DEFAULT 50,
+                personality_trait TEXT, 
+                FOREIGN KEY(wingmanId) REFERENCES squad_members(id)
+            )""")
+
+            cursor.execute("""CREATE TABLE IF NOT EXISTS wingmen_memory (
+                id TEXT PRIMARY KEY,
+                wingmanId TEXT,
+                event_type TEXT,
+                event_date TEXT,
+                description TEXT,
+                impact_morale INTEGER DEFAULT 0,
+                impact_stress INTEGER DEFAULT 0,
+                FOREIGN KEY(wingmanId) REFERENCES squad_members(id)
+            )""")
+            
             conn.commit()
             log.info(f"Base de dados SQLite pronta: {self.db_path}")
         except Exception as e:
@@ -259,7 +284,7 @@ class DatabaseManager:
                     if row:
                         pilot_id = row[0]
                         
-                        # FIX: Proteção contra placeholders "Pilot X" não apagarem nomes reais
+                        # Proteção contra placeholders "Pilot X" não apagarem nomes reais
                         name_val = pilot.name
                         if re.match(r"^Pilot \d+$", name_val):
                             name_val = ""
@@ -367,15 +392,24 @@ class DatabaseManager:
                     """, (d.id, d.pilotId, d.name, d.date, d.citation, d.source_file))
                     added_d += cursor.rowcount
 
-                # ── Processar Membros do Esquadrão (AI Wingmen) ──
+                # ── Processar Membros do Esquadrão (AI Wingmen com UPSERT) ──
                 added_w = 0
                 if wingmen:
                     for w in wingmen:
                         w.pilotId = pilot_id
+                        # FIX: Usar UPSERT para atualizar o status se o wingman já existir (ex: passou a Wounded/KIA)
                         cursor.execute("""
-                            INSERT OR IGNORE INTO squad_members (id, pilotId, rank, fName, sName, 
+                            INSERT INTO squad_members (id, pilotId, rank, fName, sName, 
                             skill, morale, status, missions, flminutes, bio)
                             VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                            ON CONFLICT(pilotId, fName, sName) DO UPDATE SET 
+                                rank=excluded.rank, 
+                                skill=excluded.skill, 
+                                morale=excluded.morale, 
+                                status=excluded.status, 
+                                missions=excluded.missions, 
+                                flminutes=excluded.flminutes, 
+                                bio=excluded.bio
                         """, (w.id, w.pilotId, w.rank, w.fName, w.sName, 
                               w.skill, w.morale, w.status, w.missions, w.flminutes, w.bio))
                         added_w += cursor.rowcount
@@ -395,7 +429,7 @@ class DatabaseManager:
                 conn.close()
 
     # ──────────────────────────────────────────────────────────────
-    # MÉTODOS DA FASE 2 (RPG SYSTEM)
+    # MÉTODOS DA FASE 2 E 3 (RPG SYSTEM & 3P PROFILES)
     # ──────────────────────────────────────────────────────────────
 
     def get_pilot_id_by_name(self, pilot_name: str) -> Optional[str]:
@@ -410,6 +444,20 @@ class DatabaseManager:
             except Exception as e:
                 log.error(f"Erro ao buscar ID do piloto {pilot_name}: {e}")
                 return None
+            finally:
+                conn.close()
+
+    def get_wingmen_by_pilot(self, pilot_id: str) -> List[dict]:
+        """Busca os wingmen atuais de um piloto na DB para comparação de status."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.row_factory = sqlite3.Row
+            try:
+                cursor = conn.execute("SELECT fName, sName, status FROM squad_members WHERE pilotId = ?", (pilot_id,))
+                return [dict(row) for row in cursor.fetchall()]
+            except Exception as e:
+                log.error(f"Erro ao buscar wingmen: {e}")
+                return []
             finally:
                 conn.close()
 
@@ -479,5 +527,68 @@ class DatabaseManager:
                 log.info(f"  📝 Diário de Bordo atualizado para a missão {mission_id if mission_id else 'Evento de Vida'}.")
             except Exception as e:
                 log.error(f"Erro ao salvar diário: {e}")
+            finally:
+                conn.close()
+
+    # ── 3P System: Personalidade e Memória ──
+
+    def get_wingman_personality(self, wingman_id: str) -> Optional[dict]:
+        """Busca a personalidade 3P de um wingman."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.row_factory = sqlite3.Row
+            try:
+                cursor = conn.execute("SELECT * FROM wingmen_personalities WHERE wingmanId = ?", (wingman_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+            except Exception as e:
+                log.error(f"Erro ao buscar personalidade: {e}")
+                return None
+            finally:
+                conn.close()
+
+    def save_wingman_personality(self, wingman_id: str, pilot_id: str, personality: dict) -> bool:
+        """Guarda ou atualiza a personalidade 3P de um wingman."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO wingmen_personalities (wingmanId, pilotId, aerial_skill, aggression, charisma, intelligence, physicality, professionalism, personality_trait)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(wingmanId) DO UPDATE SET 
+                        aerial_skill=excluded.aerial_skill, 
+                        aggression=excluded.aggression, 
+                        charisma=excluded.charisma, 
+                        intelligence=excluded.intelligence, 
+                        physicality=excluded.physicality, 
+                        professionalism=excluded.professionalism, 
+                        personality_trait=excluded.personality_trait
+                """, (wingman_id, pilot_id, personality.get("aerial_skill", 50), personality.get("aggression", 50), 
+                       personality.get("charisma", 50), personality.get("intelligence", 50), 
+                       personality.get("physicality", 50), personality.get("professionalism", 50), personality.get("personality_trait", "Standard")))
+                conn.commit()
+                return True
+            except Exception as e:
+                log.error(f"Erro ao salvar personalidade: {e}")
+                return False
+            finally:
+                conn.close()
+
+    def save_wingman_memory(self, wingman_id: str, event_type: str, event_date: str, description: str, impact_morale: int = 0, impact_stress: int = 0) -> bool:
+        """Regista um evento na memória do Wingman."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO wingmen_memory (id, wingmanId, event_type, event_date, description, impact_morale, impact_stress)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (_uid(), wingman_id, event_type, event_date, description, impact_morale, impact_stress))
+                conn.commit()
+                return True
+            except Exception as e:
+                log.error(f"Erro ao salvar memória: {e}")
+                return False
             finally:
                 conn.close()

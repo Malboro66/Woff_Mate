@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Gerador de Narrativas Avançado (narrative_generator.py)
+Gerador de Narrativas (narrative_generator.py)
 ══════════════════════════════════════════════════════════════════
 Gera entradas de Diário de Bordo altamente contextuais, baseadas
-nos dados exatos extraídos da missão (clima, aeronaves, vitórias).
+nos dados exatos extraídos da missão, eventos de vida e wingmen.
 ══════════════════════════════════════════════════════════════════
 """
 import logging
@@ -22,11 +22,11 @@ class NarrativeGenerator:
         """
         date = mission_data.get("date", "Data desconhecida")
         mission_type = mission_data.get("missionType", "patrulha")
-        aircraft = mission_data.get("aircraft", "aeronave desconhecida").replace("_", " ")
-        weather = mission_data.get("weather", "").lower()
+        aircraft = str(mission_data.get("aircraft", "aeronave desconhecida").replace("_", " "))
+        weather = str(mission_data.get("weather", "")).lower()
         claims = mission_data.get("claimsCount", "0")
         enemy_type = mission_data.get("enemyType", "")
-        result = mission_data.get("result", "").lower()
+        result = str(mission_data.get("result", "")).lower()
         wounds = int(mission_data.get("woundsReceived", 0))
         damage = int(mission_data.get("damageReceived", 0))
 
@@ -95,6 +95,18 @@ class NarrativeGenerator:
             event_text += f"Fui promovido a {new_rank}! É uma honra, mas também traz um peso extra nos ombros. Os camaradas festejaram no mess esta noite."
             
         return event_text if event_text else None
+
+    def generate_wingman_event(self, wingman_name: str, event_type: str) -> Optional[str]:
+        """Gera texto para eventos de vida de wingmen (mortes, ferimentos, chegadas)."""
+        if event_type == "wounded":
+            return f"O meu camarada {wingman_name} foi ferido em combate e evacuado para o hospital. O esquadrão sente a sua falta."
+        elif event_type == "kia":
+            return f"Recebi a notícia de que {wingman_name} foi abatido sobre as linhas inimigas. Era um bom piloto e sentir-lhe-ei a falta no mess esta noite."
+        elif event_type == "missing":
+            return f"Perdi o contacto com {wingman_name} durante a confusão no ar. Temendo o pior para o seu destino."
+        elif event_type == "new":
+            return f"Recebemos um novo elemento na esquadrilha: {wingman_name}. Espero que esteja à altura do que o céu de Flandres nos reserva."
+        return None
 
 # Instância global
 narrative_generator = NarrativeGenerator()
