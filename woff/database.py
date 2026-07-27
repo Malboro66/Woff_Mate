@@ -254,13 +254,16 @@ class DatabaseManager:
             finally:
                 conn.close()
 
+    # FIX: Retorna Optional[str] com o pilot_id em vez de bool.
+    #      Isso permite que o handler obtenha o ID real após o merge
+    #      (essencial para invocar o CampaignEngine com o identificador correto).
     def merge_and_write(self,
                         pilot:       Optional[WoFFPilot],
                         missions:    List[WoFFMission],
                         victories:   List[WoFFVictory],
                         decorations: List[WoFFDecoration],
-                        wingmen:     Optional[List[WoFFWingman]] = None) -> bool:
-        """Faz o merge dos novos dados na base de dados SQLite."""
+                        wingmen:     Optional[List[WoFFWingman]] = None) -> Optional[str]:
+        """Faz o merge dos novos dados na base de dados SQLite. Retorna o pilot_id ou None."""
         with self._lock:
             conn = self._get_conn()
             try:
@@ -354,7 +357,7 @@ class DatabaseManager:
                     pilot_id = next((m.pilotId for m in missions if m.pilotId), "")
                     if not pilot_id:
                         log.warning("  Ficheiro de debrief sem piloto associado. Ignorado.")
-                        return False
+                        return None
 
                 # ── Processar Missões (com squadron e time) ──
                 added_m = 0
@@ -419,12 +422,12 @@ class DatabaseManager:
 
                 cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_updated', ?)", (datetime.now().isoformat(),))
                 conn.commit()
-                return True
+                return pilot_id
                 
             except Exception as e:
                 log.error(f"Erro ao escrever na base de dados: {e}")
                 conn.rollback()
-                return False
+                return None
             finally:
                 conn.close()
 
@@ -487,6 +490,32 @@ class DatabaseManager:
             except Exception as e:
                 log.error(f"Erro ao buscar missão/histórico: {e}")
                 return None, None, []
+            finally:
+                conn.close()
+
+    # FIX: Novo método que devolve a data mais recente do piloto (última missão ou startDate),
+    #      evitando que o CampaignEngine use datetime.now() (2026) no diário.
+    def get_pilot_game_date(self, pilot_id: str) -> str:
+        """Busca a data mais recente do piloto (missão mais recente ou startDate)."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT date FROM missions WHERE pilotId = ? ORDER BY date DESC LIMIT 1",
+                    (pilot_id,)
+                )
+                row = cursor.fetchone()
+                if row and row[0]:
+                    return row[0]
+                cursor.execute("SELECT startDate FROM pilots WHERE id = ?", (pilot_id,))
+                row = cursor.fetchone()
+                if row and row[0]:
+                    return row[0]
+                return "1917-01-01"
+            except Exception as e:
+                log.error(f"Erro ao buscar data do jogo: {e}")
+                return "1917-01-01"
             finally:
                 conn.close()
 

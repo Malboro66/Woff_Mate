@@ -93,12 +93,18 @@ class FileProcessor:
     def _process_xml(self, path: str):
         parser = WoFFXMLParser()
         if parser.parse(path):
-            self.db_manager.merge_and_write(
+            # FIX: Captura o pilot_id real devolvido pelo merge.
+            real_pilot_id = self.db_manager.merge_and_write(
                 pilot=parser.pilot,
                 missions=parser.missions,
                 victories=parser.victories,
                 decorations=parser.decorations
             )
+            # FIX: Se houver missões e um pilot_id real, processa o fim de missão.
+            if real_pilot_id and parser.missions:
+                self.campaign_engine.process_mission_end(
+                    real_pilot_id, parser.missions[0].id
+                )
 
     def _process_text(self, path: str, fname: str):
         if "dossier" in fname:
@@ -138,14 +144,18 @@ class FileProcessor:
         # Ficheiros de piloto (Log, Claims, Squads)
         parser = WoFFPilotDataParser()
         if parser.parse(path) and parser.pilot:
-            self.db_manager.merge_and_write(
+            # FIX: Usa o pilot_id real devolvido pelo merge em vez do nome placeholder.
+            real_pilot_id = self.db_manager.merge_and_write(
                 pilot=parser.pilot,
                 missions=parser.missions, 
                 victories=parser.victories,
                 decorations=[]
             )
-            if parser.missions and parser.pilot.name:
-                self.campaign_engine.process_mission_end(parser.pilot.name, parser.missions[0].id)
+            # FIX: Só invoca o RPG se tivermos um ID real e missões.
+            if real_pilot_id and parser.missions:
+                self.campaign_engine.process_mission_end(
+                    real_pilot_id, parser.missions[0].id
+                )
 
 
 class WoFFEventHandler(FileSystemEventHandler):

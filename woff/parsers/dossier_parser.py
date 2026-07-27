@@ -18,6 +18,8 @@ import logging
 from datetime import datetime
 from typing import Optional, List
 from models import WoFFPilot, WoFFWingman, WoFFDecoration
+# FIX: Importa as funções de normalização para aplicar aos dados do Dossier.
+from normalization import normalize_nation, normalize_date
 
 log = logging.getLogger("WoFFWatch")
 
@@ -150,14 +152,16 @@ class WoFFDossierParser:
                 if not s_clean:
                     continue
                 
+                # FIX: Aplica normalize_nation() para converter "Britain" -> "RFC", etc.
                 if not self.pilot.nation and s_clean in ("France", "Britain", "Germany", "USA", "Belgium"):
-                    self.pilot.nation = s_clean
+                    self.pilot.nation = normalize_nation(s_clean)
                     continue
                 if not self.pilot.status and s_clean in ("In Service", "Wounded", "KIA", "Leave", "Prisoner", "Dead", "Retired"):
                     self.pilot.status = s_clean
                     continue
+                # FIX: Aplica normalize_date() para converter "11/09/1896" -> "1896-09-11".
                 if not self.pilot.birthDate and "/" in s_clean and len(s_clean) == 10 and s_clean[2] == "/" and s_clean[5] == "/":
-                    self.pilot.birthDate = s_clean
+                    self.pilot.birthDate = normalize_date(s_clean)
                     continue
                 if not self.pilot.notes and ("joined" in s_clean.lower() or "enlisted" in s_clean.lower()):
                     self.pilot.notes = s_clean

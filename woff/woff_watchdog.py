@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-WoFF BHaH II Watchdog v3.0
+WoFF BHaH II Watchdog v3.1
 ══════════════════════════════════════════════════════════════════
 Monitoriza os ficheiros de campanha do Wings over Flanders Fields:
 Between Heaven and Hell II e exporta dados de missões e pilotos
 em SQLite compatível com a aplicação WoFFBase.
 
-Melhorias v3.0 (Fase 4 - Preparação para Empacotamento):
-- Graceful degradation: mensagens instrutivas se faltarem dependências.
-- Null-safety rigorosa para aprovação em analisadores estáticos (Pyright).
-- Procura dinâmica das pastas Medals e Scratchpad em todos os caminhos.
+Melhorias v3.1 (Correção de Integração):
+- RPG e Diário de Missão agora usam o pilot_id real (resolve "Pilot 1").
+- Eventos de Vida e Wingmen usam a data do ficheiro (imersão histórica).
+- Wingmen: aborta comparação se lista vazia (evita spam "missing").
+- Dossier: normaliza nação e datas de nascimento.
 
 Modos de uso:
   Normal:       python woff/woff_watchdog.py
@@ -28,6 +29,7 @@ import argparse
 import logging
 import threading
 from typing import Optional, List, Any
+from datetime import datetime
 
 # ──────────────────────────────────────────────────────────────
 # CONFIGURAÇÃO DE CAMINHO (Garante que os módulos são encontrados)
@@ -152,6 +154,12 @@ class WoFFWatchdog:
                 for file_path in glob.glob(os.path.join(path, file_pattern)):
                     fname = os.path.basename(file_path).lower()
                     
+                    # FIX: Extrair data do ficheiro para eventos históricos
+                    try:
+                        file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%Y-%m-%d")
+                    except OSError:
+                        file_mtime = None
+                    
                     try:
                         if "dossier" in fname:
                             parser = WoFFDossierParser()
@@ -160,7 +168,10 @@ class WoFFWatchdog:
                                     
                                 old_status, old_rank = self.db_manager.get_pilot_state(parser.pilot.name)
                                 
-                                self.campaign_engine.process_wingmen_changes(parser.pilot.name, parser.wingmen)
+                                # FIX: Passar data do ficheiro para não gerar entradas em 2026
+                                self.campaign_engine.process_wingmen_changes(
+                                    parser.pilot.name, parser.wingmen, event_date=file_mtime
+                                )
                                 
                                 self.db_manager.merge_and_write(
                                     pilot=parser.pilot, missions=[], victories=[],
@@ -174,7 +185,8 @@ class WoFFWatchdog:
                                 
                                 if (old_status_str != new_status) or (old_rank_str != new_rank and new_rank):
                                     self.campaign_engine.process_life_events(
-                                        parser.pilot.name, str(new_status), str(new_rank), old_status_str, old_rank_str
+                                        parser.pilot.name, str(new_status), str(new_rank), 
+                                        old_status_str, old_rank_str, event_date=file_mtime
                                     )
                         elif "squads" in fname:
                             parser = WoFFPilotDataParser()
@@ -190,9 +202,19 @@ class WoFFWatchdog:
                                     victories=[], decorations=[], wingmen=None
                                 )
                                 if parser.missions and parser.pilot and parser.pilot.name:
-                                    self.campaign_engine.process_mission_end(
-                                        parser.pilot.name, parser.missions[0].id
-                                    )
+                                    # FIX: Resolver pilot_id REAL antes de chamar o RPG.
+                                    # O parser devolve "Pilot 1" (placeholder), que não existe na DB.
+                                    real_pilot_id = self.db_manager.get_pilot_id_by_name(parser.pilot.name)
+                                    if real_pilot_id:
+                                        self.campaign_engine.process_mission_end(
+                                            real_pilot_id, parser.missions[0].id
+                                        )
+                                    else:
+                                        log.warning(
+                                            f"[Sync] Não foi possível resolver pilot_id real para "
+                                            f"'{parser.pilot.name}' (source: {parser.pilot.source_file}). "
+                                            f"RPG abortado na sincronização inicial."
+                                        )
                         elif "claims" in fname:
                             parser = WoFFPilotDataParser()
                             if parser.parse(file_path):
@@ -363,7 +385,7 @@ def run_parse_file(file_path: str):
 
 BANNER = r"""
 ╔════════════════════════════════════════════════════════════╗
-║      ✈  WoFF BHaH II — Watchdog  v3.0  ✈                  ║
+║      ✈  WoFF BHaH II — Watchdog  v3.1  ✈                  ║
 ║   Wings over Flanders Fields · SQLite Companion Sync          ║
 ╚══════════════════════════════════════════════════════════╝
 """

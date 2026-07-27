@@ -5,10 +5,27 @@ block_cipher = None
 
 a = Analysis(
     ['woff/woff_watchdog.py'],
-    pathex=[],
+    pathex=['woff'], # Adiciona a pasta woff ao path do PyInstaller
     binaries=[],
     datas=[],
-    hiddenimports=['watchdog.observers', 'watchdog.events', 'watchdog.utils.dirsnapshot'],
+    hiddenimports=[
+        'watchdog.observers', 
+        'watchdog.events', 
+        'watchdog.utils.dirsnapshot',
+        # Módulos internos locais (Forçar o empacotamento)
+        'config', 
+        'handler', 
+        'database', 
+        'discovery', 
+        'medal_cataloger', 
+        'squadron_cataloger', 
+        'campaign_engine',
+        'parsers', 
+        'parsers.xml_parser', 
+        'parsers.mission_log_parser', 
+        'parsers.pilot_data_parser', 
+        'parsers.dossier_parser'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
