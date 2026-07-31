@@ -14,7 +14,7 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, List, Any
+from typing import Optional, List
 
 from watchdog.events import FileSystemEventHandler
 
@@ -28,17 +28,19 @@ from parsers.dossier_parser import WoFFDossierParser
 
 log = logging.getLogger("WoFFWatch")
 
+
 class FileStabilityGuard:
     """Verifica se o ficheiro parou de crescer antes de o ler."""
+
     def __init__(self, timeout: float = 3.0, interval: float = 0.15):
-        self.timeout  = timeout
+        self.timeout = timeout
         self.interval = interval
 
     def wait(self, path: str) -> bool:
         if not os.path.exists(path):
             return False
         prev_size = -1
-        elapsed   = 0.0
+        elapsed = 0.0
         while elapsed < self.timeout:
             try:
                 size = os.path.getsize(path)
@@ -47,24 +49,37 @@ class FileStabilityGuard:
                 elapsed += self.interval
                 continue
             if size == prev_size and size > 0:
-                log.debug(f"Ficheiro estável em {elapsed:.1f}s: {os.path.basename(path)}")
+                log.debug(
+                    f"Ficheiro estável em {elapsed:.1f}s: {os.path.basename(path)}"
+                )
                 return True
             prev_size = size
             time.sleep(self.interval)
-            elapsed  += self.interval
-        log.warning(f"Timeout de estabilidade ({self.timeout}s): {os.path.basename(path)}")
+            elapsed += self.interval
+        log.warning(
+            f"Timeout de estabilidade ({self.timeout}s): {os.path.basename(path)}"
+        )
         return False
+
 
 class FileProcessor:
     """
     Pipeline de processamento de ficheiros.
     Desacopla a lógica de negócio do event handler do watchdog.
     """
-    def __init__(self, db_manager: DatabaseManager, campaign_engine: CampaignEngine, discovery=None):
+
+    def __init__(
+        self,
+        db_manager: DatabaseManager,
+        campaign_engine: CampaignEngine,
+        discovery=None,
+    ):
         self.db_manager = db_manager
         self.campaign_engine = campaign_engine
         self.discovery = discovery
-        self.guard = FileStabilityGuard(timeout=3.0, interval=0.15) # Hardcoded para segurança no pipeline
+        self.guard = FileStabilityGuard(
+            timeout=3.0, interval=0.15
+        )  # Hardcoded para segurança no pipeline
 
     def process(self, path: str, event_type: str):
         """Executa a cadeia de processamento."""
@@ -86,9 +101,9 @@ class FileProcessor:
                 self._process_xml(path)
             elif ext in (".txt", ".log"):
                 self._process_text(path, fname)
-                
-        except Exception as e:
-            log.exception(f"Erro no pipeline de processamento para {path}: {e}")
+
+        except Exception:
+            log.exception(f"Erro no pipeline de processamento para {path}")
 
     def _process_xml(self, path: str):
         parser = WoFFXMLParser()
@@ -98,7 +113,7 @@ class FileProcessor:
                 pilot=parser.pilot,
                 missions=parser.missions,
                 victories=parser.victories,
-                decorations=parser.decorations
+                decorations=parser.decorations,
             )
             # FIX: Se houver missões e um pilot_id real, processa o fim de missão.
             if real_pilot_id and parser.missions:
@@ -110,49 +125,74 @@ class FileProcessor:
         if "dossier" in fname:
             parser = WoFFDossierParser()
             if parser.parse(path) and parser.pilot:
-                old_status, old_rank = self.db_manager.get_pilot_state(parser.pilot.name)
-                
-                # Processar Wingmen ANTES do merge
-                self.campaign_engine.process_wingmen_changes(parser.pilot.name, parser.wingmen)
-                
-                self.db_manager.merge_and_write(
-                    pilot=parser.pilot, missions=[], victories=[],
-                    decorations=parser.decorations, wingmen=parser.wingmen
+                old_status, old_rank = self.db_manager.get_pilot_state(
+                    parser.pilot.name
                 )
-                
+
+                # Processar Wingmen ANTES do merge
+                self.campaign_engine.process_wingmen_changes(
+                    parser.pilot.name, parser.wingmen
+                )
+
+                self.db_manager.merge_and_write(
+                    pilot=parser.pilot,
+                    missions=[],
+                    victories=[],
+                    decorations=parser.decorations,
+                    wingmen=parser.wingmen,
+                )
+
                 new_status = parser.pilot.status
                 new_rank = parser.pilot.rank
                 old_status_str = old_status if old_status is not None else ""
                 old_rank_str = old_rank if old_rank is not None else ""
-                
-                if (old_status_str != new_status) or (old_rank_str != new_rank and new_rank):
+
+                if (old_status_str != new_status) or (
+                    old_rank_str != new_rank and new_rank
+                ):
                     self.campaign_engine.process_life_events(
-                        parser.pilot.name, str(new_status), str(new_rank), old_status_str, old_rank_str
+                        parser.pilot.name,
+                        str(new_status),
+                        str(new_rank),
+                        old_status_str,
+                        old_rank_str,
                     )
             return
-            
+
         if fname == "mission.log":
             parser = WoFFMissionLogParser()
             if parser.parse(path):
                 self.db_manager.merge_and_write(
                     pilot=parser.pilot,
                     missions=[parser.mission] if parser.mission else [],
-                    victories=[], decorations=[]
+                    victories=[],
+                    decorations=[],
                 )
             return
-            
+
         # Ficheiros de piloto (Log, Claims, Squads)
         parser = WoFFPilotDataParser()
         if parser.parse(path) and parser.pilot:
-            # FIX: Usa o pilot_id real devolvido pelo merge em vez do nome placeholder.
-            real_pilot_id = self.db_manager.merge_and_write(
+            # FIX: Usa resolve_pilot_id com source_file para resolver "Pilot X" → UUID real.
+            real_pilot_id = self.db_manager.resolve_pilot_id(
+                parser.pilot.name,
+                source_file=parser.pilot.source_file,
+            )
+            if not real_pilot_id:
+                log.warning(
+                    f"Não foi possível resolver pilot_id para '{parser.pilot.name}' "
+                    f"(source: {parser.pilot.source_file}). Abortando processamento."
+                )
+                return
+
+            self.db_manager.merge_and_write(
                 pilot=parser.pilot,
-                missions=parser.missions, 
+                missions=parser.missions,
                 victories=parser.victories,
-                decorations=[]
+                decorations=[],
             )
             # FIX: Só invoca o RPG se tivermos um ID real e missões.
-            if real_pilot_id and parser.missions:
+            if parser.missions:
                 self.campaign_engine.process_mission_end(
                     real_pilot_id, parser.missions[0].id
                 )
@@ -163,13 +203,22 @@ class WoFFEventHandler(FileSystemEventHandler):
     Listener puro do Watchdog.
     Filtra ficheiros e delega para o FileProcessor.
     """
-    WATCHED_EXT = {".xml", ".txt", ".log"}
-    IGNORED     = {"desktop.ini", "thumbs.db", ".tmp", "~", ".bak", ".lnk"}
 
-    def __init__(self, config, db_manager: DatabaseManager, campaign_engine: CampaignEngine, discovery=None):
+    WATCHED_EXT = {".xml", ".txt", ".log"}
+    IGNORED = {"desktop.ini", "thumbs.db", ".tmp", "~", ".bak", ".lnk"}
+
+    def __init__(
+        self,
+        config,
+        db_manager: DatabaseManager,
+        campaign_engine: CampaignEngine,
+        discovery=None,
+    ):
         self.config = config
         self.processor = FileProcessor(db_manager, campaign_engine, discovery)
-        self._pool = ThreadPoolExecutor(max_workers=config.max_workers, thread_name_prefix="woff-worker")
+        self._pool = ThreadPoolExecutor(
+            max_workers=config.max_workers, thread_name_prefix="woff-worker"
+        )
         self._inflight: set[str] = set()
         self._inflight_lock = threading.Lock()
 
@@ -182,17 +231,17 @@ class WoFFEventHandler(FileSystemEventHandler):
             self._handle(str(event.src_path), "created")
 
     def _handle(self, path: str, event_type: str):
-        bn  = os.path.basename(path).lower()
+        bn = os.path.basename(path).lower()
         ext = os.path.splitext(path)[1].lower()
-        
+
         if ext not in self.WATCHED_EXT or any(p in bn for p in self.IGNORED):
             return
-            
+
         with self._inflight_lock:
             if path in self._inflight:
                 return
             self._inflight.add(path)
-            
+
         # Submete para a thread pool, chamando o processor
         self._pool.submit(self._execute_pipeline, path, event_type)
 
@@ -204,7 +253,7 @@ class WoFFEventHandler(FileSystemEventHandler):
         finally:
             with self._inflight_lock:
                 self._inflight.discard(path)
-            
+
     def shutdown(self):
         log.info("A aguardar conclusão das threads de processamento...")
         self._pool.shutdown(wait=True)

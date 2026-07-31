@@ -1,4 +1,20 @@
-# WoFF BHaH II Watchdog — dependências
-# Instala com:  pip install -r requirements.txt
+# WoFF BHaH II Watchdog — Dependências
+# Instalação:  pip install -r requirements.txt
+# ──────────────────────────────────────────────────────────────
 
+# ═══ RUNTIME (obrigatórias) ═══
+# Monitorização de eventos do sistema de ficheiros
 watchdog>=3.0.0
+
+# ═══ DEVELOPMENT / TESTES ═══
+# Framework de testes (usado em toda a suite tests/)
+pytest>=7.0.0
+
+# Monitoramento de memória nos testes de performance (opcional)
+# Se não instalado, o teste de memória é skipped automaticamente
+psutil>=5.9.0
+
+# ═══ NOTAS SOBRE DEPENDÊNCIAS DE PLATAFORMA ═══
+# pywin32: NÃO é necessário. O módulo winreg usado em win_registry.py
+# faz parte da stdlib do Python em Windows. A referência a pywin32 em
+# mensagens de erro antigas foi removida.
