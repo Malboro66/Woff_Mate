@@ -62,10 +62,14 @@ class RPGSystem:
         return max(0, min(fatigue, self.MAX_FATIGUE))
 
     def calculate_morale(self, missions: List[Dict[str, Any]], pilot_status: str) -> int:
-        """Calcula a moral (0-100) com base em vitórias e baixas."""
+        """Calcula a moral (0-100) com base em vitórias e baixas recentes.
+
+        Pré-condição: ``missions`` deve estar ordenada da mais recente para a
+        mais antiga. Apenas as 10 missões mais recentes são consideradas.
+        """
         morale = 75
         
-        for m in missions[-10:]: # Olha para as últimas 10 missões
+        for m in missions[:10]:
             if m.get("claimsCount", "0") != "0":
                 morale += 5
             if m.get("woundsReceived", False):
@@ -84,11 +88,14 @@ class RPGSystem:
         return max(0, min(morale, self.MAX_MORALE))
 
     def calculate_stress(self, missions: List[Dict[str, Any]]) -> int:
-        """Calcula o stress de combate (0-100)."""
+        """Calcula o stress de combate (0-100).
+
+        Pré-condição: ``missions`` deve estar ordenada da mais recente para a
+        mais antiga. Apenas as 5 missões mais recentes são consideradas.
+        """
         stress = 0
         
-        # Missões recentes (últimas 5)
-        for m in missions[:5]: 
+        for m in missions[:5]:
             try:
                 contacts = int(m.get("enemyContacts", "0"))
                 stress += contacts * 4

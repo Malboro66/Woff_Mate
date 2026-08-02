@@ -105,7 +105,7 @@ class TestWoFFDossierParser(unittest.TestCase):
         assert self.parser.pilot is not None
         
         self.assertEqual(self.parser.pilot.name, "James Hartley")
-        self.assertEqual(self.parser.pilot.nation, "France")
+        self.assertEqual(self.parser.pilot.nation, "French")
         self.assertEqual(self.parser.pilot.photo, "1")
         self.assertEqual(self.parser.pilot.killsCount, "3")
 

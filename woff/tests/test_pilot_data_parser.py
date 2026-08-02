@@ -1,12 +1,15 @@
 import unittest
 import sys
 import os
+import tempfile
 from unittest.mock import patch, mock_open
 
 # Adicionar a pasta woff ao path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from parsers.pilot_data_parser import WoFFPilotDataParser
+from parsers.xml_parser import WoFFXMLParser
+from rpg_system import RPGSystem
 
 class TestWoFFPilotDataParser(unittest.TestCase):
     
@@ -31,6 +34,79 @@ class TestWoFFPilotDataParser(unittest.TestCase):
         self.assertEqual(m.aircraft, "SE.5a")
         self.assertEqual(m.squadron, "No. 56 Sqn RFC")
     
+
+    def test_parse_log_populates_wounds_and_damage_flags(self):
+        """PilotLog.txt deve popular explicitamente dano e ferimentos."""
+        mock_content = "2\n"
+        mock_content += "6;4;1917;10;30;Arras;Filescamp;OP;SE.5a;;45;100;SE.5a;No. 56 Sqn RFC;troops;Army Camp;N50*17;E2*42;Damaged;Wounded; Final Status: Crash landed wounded.;\n"
+        mock_content += "7;4;1917;11;00;Arras;Filescamp;OP;SE.5a;;45;100;SE.5a;No. 56 Sqn RFC;troops;Army Camp;N50*17;E2*42;No;0; Final Status: Landed safely.;\n"
+
+        parser = WoFFPilotDataParser()
+        with patch("builtins.open", mock_open(read_data=mock_content)):
+            ok = parser.parse("Pilot1Log.txt")
+
+        self.assertTrue(ok)
+        self.assertEqual(len(parser.missions), 2)
+        self.assertTrue(parser.missions[0].damageReceived)
+        self.assertTrue(parser.missions[0].woundsReceived)
+        self.assertFalse(parser.missions[1].damageReceived)
+        self.assertFalse(parser.missions[1].woundsReceived)
+
+    def test_parse_log_damage_wounds_match_xml_boolean_semantics(self):
+        """TXT e XML devem produzir os mesmos booleanos para missão equivalente."""
+        mock_content = "1\n"
+        mock_content += "6;4;1917;10;30;Arras;Filescamp;OP;SE.5a;;45;100;SE.5a;No. 56 Sqn RFC;troops;Army Camp;N50*17;E2*42;Yes;1; Final Status: Returned damaged and wounded.;\n"
+
+        txt_parser = WoFFPilotDataParser()
+        with patch("builtins.open", mock_open(read_data=mock_content)):
+            self.assertTrue(txt_parser.parse("Pilot1Log.txt"))
+
+        xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Campaign>
+  <Pilot><PilotName>Test Pilot</PilotName><Status>Active</Status></Pilot>
+  <Missions>
+    <Mission>
+      <Date>1917-04-06</Date><Time>10:30</Time><Type>OP</Type>
+      <Aircraft>SE.5a</Aircraft><Damage>Yes</Damage><Wounds>1</Wounds>
+    </Mission>
+  </Missions>
+</Campaign>
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False, encoding="utf-8") as f:
+            f.write(xml)
+            xml_path = f.name
+        try:
+            xml_parser = WoFFXMLParser()
+            self.assertTrue(xml_parser.parse(xml_path))
+        finally:
+            os.unlink(xml_path)
+
+        self.assertEqual(
+            txt_parser.missions[0].damageReceived,
+            xml_parser.missions[0].damageReceived,
+        )
+        self.assertEqual(
+            txt_parser.missions[0].woundsReceived,
+            xml_parser.missions[0].woundsReceived,
+        )
+
+    def test_parse_log_flags_feed_fatigue_calculation(self):
+        """Ferimento e dano vindos do TXT devem impactar fadiga downstream."""
+        mock_content = "1\n"
+        mock_content += "6;4;1917;10;30;Arras;Filescamp;OP;SE.5a;;45;100;SE.5a;No. 56 Sqn RFC;troops;Army Camp;N50*17;E2*42;1;Wounded; Final Status: Crash landed wounded.;\n"
+
+        parser = WoFFPilotDataParser()
+        with patch("builtins.open", mock_open(read_data=mock_content)):
+            self.assertTrue(parser.parse("Pilot1Log.txt"))
+
+        mission = parser.missions[0]
+        rpg = RPGSystem()
+        with patch("rpg_system.random") as mock_random:
+            mock_random.random.return_value = 1.0
+            fatigue = rpg.calculate_fatigue([mission.__dict__])
+
+        self.assertEqual(fatigue, 30)
+
     def test_parse_claims_file(self):
         """Testa parsing de ficheiro de vitórias (Claims) e confirmação."""
         # Usar 2 registos para testar vitória confirmada e não confirmada

@@ -29,6 +29,19 @@ from parsers.dossier_parser import WoFFDossierParser
 log = logging.getLogger("WoFFWatch")
 
 
+def get_latest_mission_id(parser):
+    """Return the newest mission id from a parser, or None when no missions exist.
+
+    Parser mission lists preserve source order, which may be chronological from
+    oldest to newest. Consumers that trigger RPG/diary processing need the
+    mission with the greatest (date, time) tuple instead of assuming source order.
+    """
+    if not parser.missions:
+        return None
+    latest = max(parser.missions, key=lambda m: (m.date, m.time))
+    return latest.id
+
+
 class FileStabilityGuard:
     """Verifica se o ficheiro parou de crescer antes de o ler."""
 
@@ -116,9 +129,10 @@ class FileProcessor:
                 decorations=parser.decorations,
             )
             # FIX: Se houver missões e um pilot_id real, processa o fim de missão.
-            if real_pilot_id and parser.missions:
+            latest_mission_id = get_latest_mission_id(parser)
+            if real_pilot_id and latest_mission_id:
                 self.campaign_engine.process_mission_end(
-                    real_pilot_id, parser.missions[0].id
+                    real_pilot_id, latest_mission_id
                 )
 
     def _process_text(self, path: str, fname: str):
@@ -192,9 +206,10 @@ class FileProcessor:
                 decorations=[],
             )
             # FIX: Só invoca o RPG se tivermos um ID real e missões.
-            if parser.missions:
+            latest_mission_id = get_latest_mission_id(parser)
+            if latest_mission_id:
                 self.campaign_engine.process_mission_end(
-                    real_pilot_id, parser.missions[0].id
+                    real_pilot_id, latest_mission_id
                 )
 
 

@@ -16,6 +16,27 @@ class WoFFPilotDataParser:
         self.missions: List[WoFFMission] = []
         self.victories: List[WoFFVictory] = []
 
+    @staticmethod
+    def _bool_field(raw: str) -> bool:
+        """Converte flags textuais/numéricas do PilotLog para booleano.
+
+        Mantém paridade semântica com o parser XML: valores vazios e negações
+        comuns são False; indicadores positivos como 1/yes/damaged/wounded são True.
+        """
+        value = str(raw or "").strip().lower()
+        false_values = ("", "0", "false", "no", "none", "nein", "non", "undamaged")
+        true_values = (
+            "1", "true", "yes", "y", "damaged", "damage",
+            "wounded", "wound", "injured",
+        )
+        if value in false_values:
+            return False
+        if value in true_values:
+            return True
+        if value.startswith(("no ", "not ")):
+            return False
+        return bool(value)
+
     def parse(self, path: str) -> bool:
         fname = os.path.basename(path).lower()
         if "dossier" in fname: return False
@@ -69,7 +90,20 @@ class WoFFPilotDataParser:
                     m.missionType = normalize_mission_type(parts[7]) if len(parts) > 7 else ""
                     m.duration = parts[10] if len(parts) > 10 else ""
                     m.squadron = parts[13]
-                    m.notes = parts[19][:500] if len(parts) > 19 else ""
+                    # PilotLog.txt usa os campos 18 e 19 para dano na aeronave e
+                    # ferimentos do piloto. Normalizamos defensivamente para manter
+                    # paridade com os booleanos extraídos pelo parser XML.
+                    m.damageReceived = (
+                        self._bool_field(parts[18]) if len(parts) > 18 else False
+                    )
+                    m.woundsReceived = (
+                        self._bool_field(parts[19]) if len(parts) > 19 else False
+                    )
+                    m.notes = (
+                        parts[20][:500]
+                        if len(parts) > 20
+                        else parts[19][:500] if len(parts) > 19 else ""
+                    )
                     m.result = "Shot Down — KIA" if "killed" in m.notes.lower() else "Crash Landing — Survived" if "crash" in m.notes.lower() else "Completed"
                     self.missions.append(m)
             
