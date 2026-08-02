@@ -57,7 +57,8 @@ class TestLatestMissionIntegration(unittest.TestCase):
         self.processor = FileProcessor(self.db, self.engine)
 
     def tearDown(self):
-        for ext in ["", "-wal", "-shm"]:
+        self.db.close()
+        for ext in ["", "-wal", "-shm", "-journal"]:
             p = self.db_path + ext
             if os.path.exists(p):
                 os.unlink(p)
@@ -245,7 +246,8 @@ class TestNewPilotWelcomeMessage(unittest.TestCase):
             self.assertIsNotNone(row)
             self.assertIn("Cheguei à esquadrilha", row[0])
         finally:
-            for ext in ["", "-wal", "-shm"]:
+            db.close()
+            for ext in ["", "-wal", "-shm", "-journal"]:
                 p = tmp.name + ext
                 if os.path.exists(p):
                     os.unlink(p)

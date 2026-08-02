@@ -69,10 +69,12 @@ class TestPerformance(unittest.TestCase):
         self.db = DatabaseManager(self.tmp_db.name)
 
     def tearDown(self):
-        # FIX: Ignorar o erro de tipo ao atribuir None, pois é intencional para o GC
+        self.db.close()
         self.db = None  # type: ignore[assignment]
-        if os.path.exists(self.tmp_db.name):
-            os.unlink(self.tmp_db.name)
+        for ext in ["", "-wal", "-shm", "-journal"]:
+            path = self.tmp_db.name + ext
+            if os.path.exists(path):
+                os.unlink(path)
 
     def test_parse_large_dossier(self):
         """Testa parsing de um dossier binário gigante (simula 50.000 linhas)."""

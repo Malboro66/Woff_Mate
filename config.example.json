@@ -1,9 +1,6 @@
 {
-  "watch_paths": [
-    "A:\\OBDSoftware\\WOFF\\OBDWW1 Over Flanders Fields\\campaigns\\CampaignData\\Pilots",
-    "A:\\OBDSoftware\\WOFF\\OBDWW1 Over Flanders Fields\\Logs"
-  ],
-  "export_path": "C:\\Users\\johan\\Documents\\WoFFBase\\woff_data.db",
+  "watch_paths": [],
+  "export_path": "woff_data.db",
   "watched_extensions": [
     ".txt",
     ".xml",
