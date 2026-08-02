@@ -18,13 +18,13 @@ from typing import Optional, List
 
 from watchdog.events import FileSystemEventHandler
 
-from database import DatabaseManager
-from campaign_engine import CampaignEngine
+from .database import DatabaseManager
+from .campaign_engine import CampaignEngine
 
-from parsers.xml_parser import WoFFXMLParser
-from parsers.mission_log_parser import WoFFMissionLogParser
-from parsers.pilot_data_parser import WoFFPilotDataParser
-from parsers.dossier_parser import WoFFDossierParser
+from .parsers.xml_parser import WoFFXMLParser
+from .parsers.mission_log_parser import WoFFMissionLogParser
+from .parsers.pilot_data_parser import WoFFPilotDataParser
+from .parsers.dossier_parser import WoFFDossierParser
 
 log = logging.getLogger("WoFFWatch")
 

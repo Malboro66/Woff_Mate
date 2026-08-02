@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 from typing import Optional
 
 # Importar as tabelas estáticas e regex do maps.py
-from maps import (
+from .maps import (
     NATION_MAP, MISSION_TYPE_MAP, STATUS_PATTERNS, WOUND_RE, SEVERE_RE,
     VICTORY_TYPE_MAP, MONTHS_MAP
 )

@@ -6,18 +6,16 @@ Testes de regressão para os bugs identificados na revisão de código:
 3. old_status era convertido de None para "" antes de chegar ao
    narrative_generator, impedindo a mensagem de "piloto novo".
 """
-import sys
 import os
 import unittest
 import sqlite3
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from handler import FileProcessor, get_latest_mission_id
-from database import DatabaseManager
-from campaign_engine import CampaignEngine
-from narrative_generator import narrative_generator
-from models import WoFFPilot, WoFFMission
+from ..handler import FileProcessor, get_latest_mission_id
+from ..database import DatabaseManager
+from ..campaign_engine import CampaignEngine
+from ..narrative_generator import narrative_generator
+from ..models import WoFFPilot, WoFFMission
 import tempfile
 from unittest.mock import MagicMock
 

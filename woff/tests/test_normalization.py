@@ -4,14 +4,10 @@ Testes Unitários para a Normalização (tests/test_normalization.py)
 ══════════════════════════════════════════════════════════════════
 """
 
-import os
-
 import unittest
 import xml.etree.ElementTree as ET
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-from normalization import (
+from ..normalization import (
     normalize_nation,
     normalize_mission_type,
     normalize_status,

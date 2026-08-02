@@ -2,15 +2,12 @@ import unittest
 import tempfile
 import os
 import sqlite3
-import sys
 import gc
 from typing import Any
 
-# Adicionar a pasta woff ao path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from database import DatabaseManager
-from models import WoFFPilot, WoFFMission
+from ..database import DatabaseManager
+from ..models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration, WoFFWingman
 
 class TestDatabaseManager(unittest.TestCase):
     
@@ -138,6 +135,101 @@ class TestDatabaseManager(unittest.TestCase):
         conn.close()
         
         self.assertEqual(count, 2)
+
+    def test_merge_and_write_persists_all_entities(self):
+        """Regression: merge_and_write keeps legacy write behavior across entities."""
+        pilot = WoFFPilot(
+            id="pilot-regression",
+            name="Regression Pilot",
+            rank="Captain",
+            squadron="No. 1 Sqn",
+            source_file="Pilot9Dossier.txt",
+        )
+        mission = WoFFMission(
+            id="mission-regression",
+            date="1917-05-01",
+            time="08:15",
+            missionType="Patrol",
+            aircraft="Sopwith Camel",
+            damageReceived=True,
+            woundsReceived=False,
+        )
+        victory = WoFFVictory(
+            id="victory-regression",
+            date="1917-05-01",
+            time="08:40",
+            missionId=mission.id,
+            enemyType="Albatros D.III",
+            victoryType="Destroyed",
+            confirmed=True,
+        )
+        decoration = WoFFDecoration(
+            id="decoration-regression",
+            name="Military Cross",
+            date="1917-05-02",
+            citation="Gallantry in action",
+        )
+        wingman = WoFFWingman(
+            id="wingman-regression",
+            rank="Lt",
+            fName="Arthur",
+            sName="Reed",
+            skill="55",
+            morale="70",
+        )
+
+        pilot_id = self.db.merge_and_write(
+            pilot, [mission], [victory], [decoration], [wingman]
+        )
+
+        self.assertEqual(pilot_id, pilot.id)
+        conn = sqlite3.connect(self.tmp_db.name)
+        rows = {
+            "pilots": conn.execute(
+                "SELECT id, name, rank, squadron FROM pilots WHERE id = ?",
+                (pilot.id,),
+            ).fetchone(),
+            "missions": conn.execute(
+                "SELECT pilotId, damageReceived, woundsReceived FROM missions WHERE id = ?",
+                (mission.id,),
+            ).fetchone(),
+            "victories": conn.execute(
+                "SELECT pilotId, confirmed FROM victories WHERE id = ?",
+                (victory.id,),
+            ).fetchone(),
+            "decorations": conn.execute(
+                "SELECT pilotId, name FROM decorations WHERE id = ?",
+                (decoration.id,),
+            ).fetchone(),
+            "squad_members": conn.execute(
+                "SELECT pilotId, fName, sName, morale FROM squad_members WHERE id = ?",
+                (wingman.id,),
+            ).fetchone(),
+        }
+        conn.close()
+
+        self.assertEqual(rows["pilots"], (pilot.id, pilot.name, pilot.rank, pilot.squadron))
+        self.assertEqual(rows["missions"], (pilot.id, 1, 0))
+        self.assertEqual(rows["victories"], (pilot.id, 1))
+        self.assertEqual(rows["decorations"], (pilot.id, decoration.name))
+        self.assertEqual(rows["squad_members"], (pilot.id, wingman.fName, wingman.sName, wingman.morale))
+
+    def test_mission_repository_read_methods_exist(self):
+        """MissionRepository exposes its read APIs and returns persisted mission data."""
+        pilot = WoFFPilot(name="Mission Repo Pilot")
+        mission = WoFFMission(
+            pilotId=pilot.id,
+            date="1917-06-01",
+            time="09:00",
+            missionType="Escort",
+            aircraft="SE.5a",
+        )
+        self.db.merge_and_write(pilot, [mission], [], [])
+
+        self.assertEqual(self.db._missions.count_by_pilot(pilot.id), 1)
+        missions = self.db._missions.get_missions_by_pilot(pilot.id)
+        self.assertEqual(len(missions), 1)
+        self.assertEqual(missions[0]["id"], mission.id)
 
 if __name__ == "__main__":
     unittest.main()

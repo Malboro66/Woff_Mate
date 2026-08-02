@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "woff"
+version = "3.2.0"
+description = "WoFF BHaH II Watchdog data extraction and campaign persistence tools"
+requires-python = ">=3.10"
+dependencies = [
+    "watchdog>=3.0",
+]
+
+[project.optional-dependencies]
+windows = ["pywin32>=306; platform_system == 'Windows'"]
+
+[project.scripts]
+woff-watchdog = "woff.woff_watchdog:main"
+woff-report = "woff.gerar_relatorio:main"
+
+[tool.setuptools.packages.find]
+include = ["woff*"]

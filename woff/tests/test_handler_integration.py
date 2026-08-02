@@ -6,10 +6,10 @@ import shutil
 from unittest.mock import patch, MagicMock
 
 
-from config import WatchdogConfig
-from database import DatabaseManager
-from campaign_engine import CampaignEngine
-from handler import WoFFEventHandler
+from ..config import WatchdogConfig
+from ..database import DatabaseManager
+from ..campaign_engine import CampaignEngine
+from ..handler import WoFFEventHandler
 
 # Mock de um ficheiro de campanha XML válido
 MOCK_XML_VALID = """<?xml version="1.0" encoding="UTF-8"?>

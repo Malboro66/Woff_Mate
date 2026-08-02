@@ -3,10 +3,9 @@ import tempfile
 import os
 import xml.etree.ElementTree as ET
 
-# Sem mais sys.path ou os.path manipulations!
 # O pytest (com a ajuda do conftest.py na pasta woff/) resolve os imports automaticamente.
-from parsers.xml_parser import WoFFXMLParser
-from models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration
+from ..parsers.xml_parser import WoFFXMLParser
+from ..models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration
 
 
 # ──────────────────────────────────────────────────────────────

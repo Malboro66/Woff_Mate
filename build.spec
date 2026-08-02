@@ -3,28 +3,42 @@
 
 block_cipher = None
 
+# The application is now an installable package.  Keep the repository root on
+# PyInstaller's path and refer to internal modules by their fully-qualified
+# package names so no runtime sys.path manipulation is required.
 a = Analysis(
     ['woff/woff_watchdog.py'],
-    pathex=['woff'], # Adiciona a pasta woff ao path do PyInstaller
+    pathex=['.'],
     binaries=[],
     datas=[],
     hiddenimports=[
-        'watchdog.observers', 
-        'watchdog.events', 
+        'watchdog.observers',
+        'watchdog.events',
         'watchdog.utils.dirsnapshot',
-        # Módulos internos locais (Forçar o empacotamento)
-        'config', 
-        'handler', 
-        'database', 
-        'discovery', 
-        'medal_cataloger', 
-        'squadron_cataloger', 
-        'campaign_engine',
-        'parsers', 
-        'parsers.xml_parser', 
-        'parsers.mission_log_parser', 
-        'parsers.pilot_data_parser', 
-        'parsers.dossier_parser'
+        'woff.config',
+        'woff.handler',
+        'woff.database',
+        'woff.discovery',
+        'woff.medal_cataloger',
+        'woff.squadron_cataloger',
+        'woff.campaign_engine',
+        'woff.models',
+        'woff.normalization',
+        'woff.maps',
+        'woff.rpg_system',
+        'woff.narrative_generator',
+        'woff.win_registry',
+        'woff.repositories',
+        'woff.repositories.base',
+        'woff.repositories.pilot',
+        'woff.repositories.mission',
+        'woff.repositories.rpg',
+        'woff.repositories.wingman',
+        'woff.parsers',
+        'woff.parsers.xml_parser',
+        'woff.parsers.mission_log_parser',
+        'woff.parsers.pilot_data_parser',
+        'woff.parsers.dossier_parser',
     ],
     hookspath=[],
     hooksconfig={},
@@ -52,7 +66,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True, # True para vermos os logs a correr
+    console=True,
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,

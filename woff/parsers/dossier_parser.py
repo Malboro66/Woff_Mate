@@ -17,9 +17,9 @@ import os
 import logging
 from datetime import datetime
 from typing import Optional, List
-from models import WoFFPilot, WoFFWingman, WoFFDecoration
+from ..models import WoFFPilot, WoFFWingman, WoFFDecoration
 # FIX: Importa as funções de normalização para aplicar aos dados do Dossier.
-from normalization import normalize_nation, normalize_date
+from ..normalization import normalize_nation, normalize_date
 
 log = logging.getLogger("WoFFWatch")
 

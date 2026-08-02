@@ -1,12 +1,9 @@
 import unittest
-import sys
 import os
 from unittest.mock import patch, mock_open
 
-# Adicionar a pasta woff ao path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from parsers.dossier_parser import WoFFDossierParser
+from ..parsers.dossier_parser import WoFFDossierParser
 
 def _encode_dossier(plaintext_lines: list, filename: str) -> bytes:
     """

@@ -9,10 +9,10 @@ o NarrativeGenerator, e guarda os resultados.
 import logging
 from typing import List, Optional
 
-from database import DatabaseManager
-from rpg_system import rpg_system
-from narrative_generator import narrative_generator
-from models import WoFFWingman
+from .database import DatabaseManager
+from .rpg_system import rpg_system
+from .narrative_generator import narrative_generator
+from .models import WoFFWingman
 
 log = logging.getLogger("WoFFWatch")
 

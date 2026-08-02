@@ -20,8 +20,8 @@ from datetime import datetime
 from typing import Optional, List, Dict
 
 # Importar modelos de dados e funções de normalização (assumindo que estão na raiz do projeto)
-from models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration
-from normalization import (
+from ..models import WoFFPilot, WoFFMission, WoFFVictory, WoFFDecoration
+from ..normalization import (
     normalize_nation,
     normalize_mission_type,
     normalize_status,
