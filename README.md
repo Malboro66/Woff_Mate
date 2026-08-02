@@ -124,10 +124,51 @@ testar e executar um clone novo não adiciona esses artefactos ao repositório.
 
 ### Atualização de versões anteriores
 
-Se já possui um `config.json`, faça uma cópia antes de atualizar o repositório.
-Como esse ficheiro era anteriormente rastreado, o Git poderá removê-lo durante a
-atualização. Nesse caso, restaure a cópia depois; o `config.json` continuará local
-e ignorado pelo Git.
+Em versões anteriores, o `config.json` era rastreado pelo Git. Se possui uma
+configuração pessoal modificada, execute o procedimento abaixo no Windows
+PowerShell, a partir da raiz do repositório:
+
+```powershell
+$repoRoot = git rev-parse --show-toplevel
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repoRoot)) {
+    throw "Execute este procedimento dentro do repositório."
+}
+$repoRoot = $repoRoot.Trim()
+$configPath = Join-Path $repoRoot "config.json"
+$backupDir = Join-Path (Split-Path -Parent $repoRoot) "Woff_Mate-backups"
+$backup = Join-Path $backupDir ("config-{0}.json" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+
+# Guarde e confirme o backup fora do repositório.
+New-Item -ItemType Directory -Force -Path $backupDir -ErrorAction Stop | Out-Null
+Copy-Item -LiteralPath $configPath -Destination $backup -ErrorAction Stop
+if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) {
+    throw "O backup de config.json não foi criado. Atualização cancelada."
+}
+$backupHash = (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash
+Write-Host "Backup confirmado em: $backup"
+
+# Descarte apenas a alteração local do ficheiro ainda rastreado e atualize.
+git restore -- config.json
+if ($LASTEXITCODE -ne 0) { throw "Não foi possível restaurar config.json." }
+git pull --ff-only
+if ($LASTEXITCODE -ne 0) { throw "git pull falhou; o backup permanece em $backup." }
+
+# Reponha a configuração pessoal e valide o estado esperado.
+Copy-Item -LiteralPath $backup -Destination $configPath -ErrorAction Stop
+if ((Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash -ne $backupHash) {
+    throw "A configuração pessoal restaurada não corresponde ao backup."
+}
+git check-ignore --quiet -- config.json
+if ($LASTEXITCODE -ne 0) { throw "config.json não está ignorado pelo Git." }
+git ls-files --error-unmatch -- config.example.json | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "config.example.json deixou de estar versionado." }
+
+Write-Host "Configuração restaurada; config.json está ignorado e config.example.json está versionado."
+```
+
+O backup fica na pasta `Woff_Mate-backups`, ao lado da pasta do repositório e,
+portanto, fora da sua árvore. Não o grave dentro do projeto: isso evita que
+caminhos e outros dados pessoais sejam incluídos acidentalmente num commit.
 
 ---
 
