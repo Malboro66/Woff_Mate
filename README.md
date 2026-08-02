@@ -147,8 +147,8 @@ if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) {
 $backupHash = (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash
 Write-Host "Backup confirmado em: $backup"
 
-# Descarte apenas a alteração local do ficheiro ainda rastreado e atualize.
-git restore -- config.json
+# Somente após confirmar o backup, limpe o índice e o ficheiro de trabalho e atualize.
+git restore --staged --worktree -- config.json
 if ($LASTEXITCODE -ne 0) { throw "Não foi possível restaurar config.json." }
 git pull --ff-only
 if ($LASTEXITCODE -ne 0) { throw "git pull falhou; o backup permanece em $backup." }
