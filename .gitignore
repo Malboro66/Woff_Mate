@@ -29,3 +29,4 @@ dist/
 *.sqlite3-shm
 *.log
 config.json
+woff_data_report.txt
