@@ -12,26 +12,7 @@ import logging
 
 log = logging.getLogger("WoFFWatch")
 
-# A mesma função de desofuscação que criámos para o Dossier
-HEX_DIGITS = set(b'0123456789ABCDEF')
-
-def unscramble(raw: bytes) -> bytes:
-    tokens = []
-    current = bytearray()
-    for b in raw:
-        if b in (0x0D, 0x0A): continue
-        if b in HEX_DIGITS:
-            current.append(b)
-        else:
-            tokens.append(bytes(current))
-            current = bytearray()
-    if current:
-        tokens.append(bytes(current))
-    
-    decoded = bytearray()
-    for t in tokens:
-        decoded.append(int(t, 16) if t else 0)
-    return bytes(decoded)
+from woff.decode.common import unscramble
 
 def catalog_squadrons(scratchpad_dir: str, db_path: str):
     if not os.path.exists(scratchpad_dir):

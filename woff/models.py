@@ -33,12 +33,12 @@ class WoFFPilot:
     # Estatísticas extraídas do Dossier
     birthDate:    str = ""
     birthPlace:   str = ""
-    missions:     str = "0"
-    flminutes:    str = "0"
-    claimsCount:  str = "0"
-    killsCount:   str = "0"
-    skill:        str = "0"
-    reputation:   str = "0"
+    missions:     int = 0
+    flminutes:    int = 0
+    claimsCount:  int = 0
+    killsCount:   int = 0
+    skill:        int = 0
+    reputation:   int = 0
     
     source_file:  str = ""
     last_updated: str = ""
@@ -56,8 +56,8 @@ class WoFFMission:
     sector:         str  = ""
     squadron:       str  = ""
     weather:        str  = ""
-    enemyContacts:  str  = "0"
-    claimsCount:    str  = "0"
+    enemyContacts:  int  = 0
+    claimsCount:    int  = 0
     result:         str  = ""
     damageReceived: bool = False
     woundsReceived: bool = False
@@ -97,9 +97,9 @@ class WoFFWingman:
     rank:        str = ""
     fName:       str = ""
     sName:       str = ""
-    skill:       str = "0"
-    morale:      str = "0"
+    skill:       int = 0
+    morale:      int = 0
     status:      str = "Active"
-    missions:    str = "0"
-    flminutes:   str = "0"
+    missions:    int = 0
+    flminutes:   int = 0
     bio:         str = ""

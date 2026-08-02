@@ -24,7 +24,7 @@ class NarrativeGenerator:
         mission_type = mission_data.get("missionType", "patrulha")
         aircraft = str(mission_data.get("aircraft", "aeronave desconhecida").replace("_", " "))
         weather = str(mission_data.get("weather", "")).lower()
-        claims = mission_data.get("claimsCount", "0")
+        claims = mission_data.get("claimsCount", 0)
         enemy_type = mission_data.get("enemyType", "")
         result = str(mission_data.get("result", "")).lower()
         wounds = int(mission_data.get("woundsReceived", 0))
@@ -39,12 +39,12 @@ class NarrativeGenerator:
         narrative = f"{date}\nHoje voámos numa {mission_type} no meu {aircraft}. {weather_text}\n\n"
 
         # 2. Ação (Contactos e Vitórias)
-        contacts = mission_data.get("enemyContacts", "0")
-        if contacts != "0" and contacts != "":
+        contacts = mission_data.get("enemyContacts", 0)
+        if contacts not in (0, "0", ""):
             narrative += f"Encontrámos {contacts} aeronaves inimigas. "
-            if claims != "0":
+            if claims not in (0, "0", ""):
                 enemy_text = f"um {enemy_type}" if enemy_type else "uma aeronave inimiga"
-                if claims == "1":
+                if claims in (1, "1"):
                     narrative += f"Consegui encurralar {enemy_text} e abatê-lo. Foi uma vitória suada, mas necessária para manter a moral da esquadrilha alta.\n"
                 else:
                     narrative += f"Hoje tive um dia de sorte, abati {claims} aeronaves inimigas. O céu pertenceu-nos hoje.\n"

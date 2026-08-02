@@ -174,8 +174,8 @@ class TestDatabaseManager(unittest.TestCase):
             rank="Lt",
             fName="Arthur",
             sName="Reed",
-            skill="55",
-            morale="70",
+            skill=55,
+            morale=70,
         )
 
         pilot_id = self.db.merge_and_write(
