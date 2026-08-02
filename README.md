@@ -63,10 +63,14 @@ Woff_Mate/
 │   ├── test_normalization.py
 │   └── test_xml_parser.py
 │
-├── config.json                 # Gerado automaticamente na primeira execução
+├── config.example.json         # Modelo neutro versionado para a configuração local
 └── requirements.txt
 
 > **Nota:** os dados reais e confiáveis do piloto vêm dos ficheiros `.txt` delimitados por `;` (via `pilot_data_parser.py`), não do XML. O `xml_parser.py` trata apenas de ficheiros de configuração do motor CFS3.
+>
+> O `config.json` é criado pela auto-deteção ou copiado localmente a partir de
+> `config.example.json`; por conter caminhos próprios da instalação, permanece
+> ignorado pelo Git.
 
 ---
 
@@ -78,49 +82,52 @@ Woff_Mate/
 
 ### Passos
 
-1. Coloque todos os ficheiros do projeto numa pasta (ex: `Off_Mate`).
-2. Abra o terminal nessa pasta e crie um ambiente virtual:
+1. Clone o repositório e abra um terminal na sua raiz.
+2. Crie um ambiente virtual:
 ```bash
    python -m venv .venv
 ```
 3. Ative o ambiente virtual:
    - **Windows (PowerShell):** `.venv\Scripts\Activate.ps1`
    - **Windows (CMD):** `.venv\Scripts\activate.bat`
-4. Instale as dependências:
+4. Instale o projeto e as dependências em modo editável:
 ```bash
-   pip install watchdog pywin32 pytest
+   pip install -e .
 ```
+
+Para desenvolvimento, instale também o `pytest` e o `pyright` conforme necessário.
 
 ---
 
 ## ⚙️ Configuração
 
-Na primeira execução, o programa gera um ficheiro `config.json` na raiz do projeto.
+Crie a configuração local a partir do modelo neutro incluído no repositório:
 
-Se a auto-deteção falhar, ajuste os caminhos manualmente:
-
-```json
-{
-  "watch_paths": [
-    "A:\\OBDSoftware\\WOFF\\OBDWW1 Over Flanders Fields\\campaigns\\CampaignData\\Pilots",
-    "A:\\OBDSoftware\\WOFF\\OBDWW1 Over Flanders Fields\\Logs"
-  ],
-  "export_path": "C:\\Users\\Public\\WoFFBase\\woff_data.db",
-  "watched_extensions": [".txt", ".xml", ".log"],
-  "stability_timeout_sec": 3.0,
-  "stability_check_interval_sec": 0.15,
-  "backup_export": true,
-  "discovery_log_path": "woff_discovery.log",
-  "log_level": "INFO",
-  "max_workers": 4,
-  "export_schema_version": "2.1"
-}
+```bash
+cp config.example.json config.json
 ```
+
+No Windows PowerShell, use `Copy-Item config.example.json config.json`. Depois,
+edite `watch_paths` e `export_path` com os caminhos da sua instalação. Se não
+existir um `config.json`, o programa também tenta detetar o WoFF através do
+Registo do Windows e cria o ficheiro quando a deteção é bem-sucedida.
+
+O `config.json` contém caminhos próprios de cada instalação e não é versionado.
+Também são locais e ignorados pelo Git os bancos SQLite, logs, ambientes
+virtuais, caches, resultados de build e configurações do VS Code. Assim, instalar,
+testar e executar um clone novo não adiciona esses artefactos ao repositório.
 
 | Chave | Descrição |
 |---|---|
 | `watch_paths` | Pastas vigiadas pelo watchdog (normalmente `Pilots` e `Logs`) |
 | `export_path` | Localização da base de dados SQLite (`woff_data.db`) |
+
+### Atualização de versões anteriores
+
+Se já possui um `config.json`, faça uma cópia antes de atualizar o repositório.
+Como esse ficheiro era anteriormente rastreado, o Git poderá removê-lo durante a
+atualização. Nesse caso, restaure a cópia depois; o `config.json` continuará local
+e ignorado pelo Git.
 
 ---
 
@@ -131,19 +138,30 @@ Todos os comandos devem ser executados a partir da raiz do projeto.
 ### Modo Normal (Produção)
 Inicia a monitorização em segundo plano. Corre até ser interrompido (`Ctrl+C`).
 ```bash
-python woff/woff_watchdog.py
+python -m woff.woff_watchdog
+# Após instalar com `pip install -e .`:
+woff-watchdog
 ```
 
 ### Modo Debug de Ficheiro Único
 Testa a extração de um ficheiro específico e imprime os dados no terminal. Ideal para testar novos parsers sem abrir o jogo.
 ```bash
-python woff/woff_watchdog.py --parse-file "C:\OBDSoftware\WOFF\OBDWW1 Over Flanders Fields\campaigns\CampaignData\Pilots\Pilot1Dossier.txt"
+python -m woff.woff_watchdog --parse-file "C:\OBDSoftware\WOFF\OBDWW1 Over Flanders Fields\campaigns\CampaignData\Pilots\Pilot1Dossier.txt"
+woff-watchdog --parse-file "C:\OBDSoftware\WOFF\OBDWW1 Over Flanders Fields\campaigns\CampaignData\Pilots\Pilot1Dossier.txt"
 ```
 
 ### Modo Descoberta
 Regista em `woff_discovery.log` todos os ficheiros que o jogo gera, com um preview do conteúdo. Útil para mapear onde o jogo guarda novas informações.
 ```bash
-python woff/woff_watchdog.py --discover
+python -m woff.woff_watchdog --discover
+woff-watchdog --discover
+```
+
+### Ajuda
+Mostra todas as opções disponíveis no CLI.
+```bash
+python -m woff.woff_watchdog --help
+woff-watchdog --help
 ```
 
 ---
