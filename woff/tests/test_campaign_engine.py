@@ -2,17 +2,14 @@ import unittest
 import tempfile
 import os
 import sqlite3
-import sys
 import gc
 from typing import Any
 from unittest.mock import patch
 
-# Adicionar a pasta woff ao path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from database import DatabaseManager
-from campaign_engine import CampaignEngine
-from models import WoFFPilot, WoFFMission
+from ..database import DatabaseManager
+from ..campaign_engine import CampaignEngine
+from ..models import WoFFPilot, WoFFMission
 
 class TestCampaignEngine(unittest.TestCase):
     # Anotações de tipo ao nível da classe

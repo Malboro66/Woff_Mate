@@ -5,8 +5,8 @@ Parser de Dados do Piloto (parsers/pilot_data_parser.py)
 """
 import os, re, logging
 from typing import List, Optional
-from models import WoFFPilot, WoFFMission, WoFFVictory
-from normalization import normalize_mission_type, normalize_victory_type, normalize_date
+from ..models import WoFFPilot, WoFFMission, WoFFVictory
+from ..normalization import normalize_mission_type, normalize_victory_type, normalize_date
 
 log = logging.getLogger("WoFFWatch")
 

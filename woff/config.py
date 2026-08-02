@@ -78,7 +78,7 @@ def load_config(path: str) -> WatchdogConfig:
         
     # Tenta Auto-Deteção via Registo do Windows
     try:
-        from win_registry import get_woff_install_path
+        from .win_registry import get_woff_install_path
         woff_path = get_woff_install_path()
         
         if woff_path:

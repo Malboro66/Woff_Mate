@@ -12,8 +12,8 @@ import re
 import logging
 import xml.etree.ElementTree as ET
 from typing import Optional, List, Dict, Any
-from models import WoFFMission, WoFFPilot
-from normalization import normalize_date, normalize_coordinates
+from ..models import WoFFMission, WoFFPilot
+from ..normalization import normalize_date, normalize_coordinates
 
 log = logging.getLogger("WoFFWatch")
 

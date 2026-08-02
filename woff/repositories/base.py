@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from database import DatabaseManager
+    from ..database import DatabaseManager
 
 log = logging.getLogger("WoFFWatch")
 

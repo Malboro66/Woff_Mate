@@ -15,7 +15,7 @@ import sqlite3
 import logging
 from typing import Optional, List, Dict, Any
 
-from models import _uid
+from ..models import _uid, WoFFWingman
 from .base import BaseRepository
 
 log = logging.getLogger("WoFFWatch")
@@ -23,6 +23,34 @@ log = logging.getLogger("WoFFWatch")
 
 class WingmanRepository(BaseRepository):
     """Repositório especializado em Wingmen AI."""
+
+    def upsert_wingmen_batch(
+        self, pilot_id: str, wingmen: Optional[List[WoFFWingman]]
+    ) -> int:
+        """Insere/atualiza wingmen de um piloto dentro da transação atual."""
+        added_w = 0
+        if not wingmen:
+            return added_w
+
+        cursor = self._conn.cursor()
+        for w in wingmen:
+            w.pilotId = pilot_id
+            cursor.execute("""
+                INSERT INTO squad_members (
+                    id, pilotId, rank, fName, sName, skill, morale,
+                    status, missions, flminutes, bio
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(pilotId, fName, sName) DO UPDATE SET
+                    rank=excluded.rank, skill=excluded.skill,
+                    morale=excluded.morale, status=excluded.status,
+                    missions=excluded.missions, flminutes=excluded.flminutes,
+                    bio=excluded.bio
+            """, (
+                w.id, w.pilotId, w.rank, w.fName, w.sName, w.skill,
+                w.morale, w.status, w.missions, w.flminutes, w.bio
+            ))
+            added_w += cursor.rowcount
+        return added_w
 
     def get_wingmen_by_pilot(self, pilot_id: str) -> List[Dict[str, Any]]:
         """Busca os wingmen atuais de um piloto."""

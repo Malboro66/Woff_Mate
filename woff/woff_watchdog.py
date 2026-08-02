@@ -15,10 +15,10 @@ Melhorias v3.2 (Correção de Integração):
   resolução correta de placeholders "Pilot X" → UUID real.
 
 Modos de uso:
-  Normal:       python woff/woff_watchdog.py
-  Debug:        python woff/woff_watchdog.py --parse-file "caminho/para/ficheiro.txt"
-  Descoberta:   python woff/woff_watchdog.py --discover
-  Ajuda:        python woff/woff_watchdog.py --help
+  Normal:       python -m woff.woff_watchdog
+  Debug:        python -m woff.woff_watchdog --parse-file "caminho/para/ficheiro.txt"
+  Descoberta:   python -m woff.woff_watchdog --discover
+  Ajuda:        python -m woff.woff_watchdog --help
 ══════════════════════════════════════════════════════════════════
 """
 
@@ -32,13 +32,6 @@ import logging
 import threading
 from typing import Optional, List, Any
 from datetime import datetime
-
-# ──────────────────────────────────────────────────────────────
-# CONFIGURAÇÃO DE CAMINHO (Garante que os módulos são encontrados)
-# ──────────────────────────────────────────────────────────────
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
 
 # ──────────────────────────────────────────────────────────────
 # VERIFICAÇÃO DE DEPENDÊNCIAS E MÓDULOS
@@ -60,19 +53,19 @@ except Exception as e:
     sys.exit(1)
 
 try:
-    from config import WatchdogConfig, load_config
-    from handler import WoFFEventHandler, get_latest_mission_id
-    from database import DatabaseManager
-    from discovery import DiscoveryLogger
-    from medal_cataloger import catalog_medals
-    from squadron_cataloger import catalog_squadrons
-    from campaign_engine import CampaignEngine
+    from .config import WatchdogConfig, load_config
+    from .handler import WoFFEventHandler, get_latest_mission_id
+    from .database import DatabaseManager
+    from .discovery import DiscoveryLogger
+    from .medal_cataloger import catalog_medals
+    from .squadron_cataloger import catalog_squadrons
+    from .campaign_engine import CampaignEngine
 
     # Importar os Parsers para a ferramenta de debug e leitura inicial
-    from parsers.xml_parser import WoFFXMLParser
-    from parsers.mission_log_parser import WoFFMissionLogParser
-    from parsers.pilot_data_parser import WoFFPilotDataParser
-    from parsers.dossier_parser import WoFFDossierParser
+    from .parsers.xml_parser import WoFFXMLParser
+    from .parsers.mission_log_parser import WoFFMissionLogParser
+    from .parsers.pilot_data_parser import WoFFPilotDataParser
+    from .parsers.dossier_parser import WoFFDossierParser
 except ImportError as e:
     print(
         f"\n[ERRO] Falha ao carregar módulos internos: {type(e).__name__} - {e}\n"
@@ -512,10 +505,10 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="""
 Exemplos:
-  python woff/woff_watchdog.py                            Monitorização normal
-  python woff/woff_watchdog.py --parse-file "A:\\...\\Pilot1Dossier.txt"  Testa um ficheiro
-  python woff/woff_watchdog.py --discover                 Regista todos os ficheiros detectados
-  python woff/woff_watchdog.py --verbose                  Log detalhado (DEBUG)
+  python -m woff.woff_watchdog                            Monitorização normal
+  python -m woff.woff_watchdog --parse-file "A:\\...\\Pilot1Dossier.txt"  Testa um ficheiro
+  python -m woff.woff_watchdog --discover                 Regista todos os ficheiros detectados
+  python -m woff.woff_watchdog --verbose                  Log detalhado (DEBUG)
 """,
     )
     ap.add_argument(

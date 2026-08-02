@@ -1,18 +1,13 @@
 # woff/conftest.py
-import sys
 import os
 
-# FIX: Garante que a pasta deste ficheiro está no sys.path.
-# O pytest nem sempre adiciona a pasta do conftest.py ao path
-# quando é executado de uma pasta superior (ex: pytest woff).
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pytest
 import tempfile
 
-from database import DatabaseManager
-from campaign_engine import CampaignEngine
-from models import WoFFPilot, WoFFMission
+from .database import DatabaseManager
+from .campaign_engine import CampaignEngine
+from .models import WoFFPilot, WoFFMission
 
 @pytest.fixture
 def db_manager():

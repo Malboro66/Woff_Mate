@@ -1,12 +1,9 @@
 import unittest
-import sys
 import os
 from unittest.mock import patch
 
-# Adicionar a pasta woff ao path (caso o conftest.py não esteja configurado)
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from rpg_system import RPGSystem
+from ..rpg_system import RPGSystem
 
 class TestRPGSystem(unittest.TestCase):
     
@@ -14,7 +11,7 @@ class TestRPGSystem(unittest.TestCase):
         self.rpg = RPGSystem()
         # Garante que nenhum evento estocástico (aleatório) invalida os testes
         # 1.0 desativa as variações de humor/ferimentos
-        self.mock_random = patch('rpg_system.random').start()
+        self.mock_random = patch('woff.rpg_system.random').start()
         self.mock_random.random.return_value = 1.0
     
     def tearDown(self):

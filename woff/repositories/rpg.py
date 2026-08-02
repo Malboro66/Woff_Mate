@@ -15,7 +15,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from models import _uid
+from ..models import _uid
 from .base import BaseRepository
 
 log = logging.getLogger("WoFFWatch")

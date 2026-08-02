@@ -12,13 +12,11 @@ import sys
 import glob
 import logging
 
-# Adicionar a pasta woff ao path para podermos usar os módulos do projeto
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "woff"))
 
-from config import load_config
-from parsers.dossier_parser import WoFFDossierParser
-from parsers.pilot_data_parser import WoFFPilotDataParser
-from parsers.mission_log_parser import WoFFMissionLogParser
+from .config import load_config
+from .parsers.dossier_parser import WoFFDossierParser
+from .parsers.pilot_data_parser import WoFFPilotDataParser
+from .parsers.mission_log_parser import WoFFMissionLogParser
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 log = logging.getLogger("ReportGen")

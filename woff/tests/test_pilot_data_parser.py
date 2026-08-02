@@ -1,15 +1,12 @@
 import unittest
-import sys
 import os
 import tempfile
 from unittest.mock import patch, mock_open
 
-# Adicionar a pasta woff ao path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from parsers.pilot_data_parser import WoFFPilotDataParser
-from parsers.xml_parser import WoFFXMLParser
-from rpg_system import RPGSystem
+from ..parsers.pilot_data_parser import WoFFPilotDataParser
+from ..parsers.xml_parser import WoFFXMLParser
+from ..rpg_system import RPGSystem
 
 class TestWoFFPilotDataParser(unittest.TestCase):
     
@@ -101,7 +98,7 @@ class TestWoFFPilotDataParser(unittest.TestCase):
 
         mission = parser.missions[0]
         rpg = RPGSystem()
-        with patch("rpg_system.random") as mock_random:
+        with patch("woff.rpg_system.random") as mock_random:
             mock_random.random.return_value = 1.0
             fatigue = rpg.calculate_fatigue([mission.__dict__])
 
