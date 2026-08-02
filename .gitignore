@@ -27,6 +27,8 @@ dist/
 *.sqlite-shm
 *.sqlite3-wal
 *.sqlite3-shm
+*-journal
 *.log
 config.json
+config.json.*
 woff_data_report.txt
