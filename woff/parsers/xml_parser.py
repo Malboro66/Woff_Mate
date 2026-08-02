@@ -81,6 +81,11 @@ class WoFFXMLParser:
                     return v.strip()
         return None
 
+    def _int_field(self, raw: str | None) -> int:
+        """Converte texto numérico do jogo em inteiro."""
+        value = (raw or "").strip()
+        return int(value) if value.isdigit() else 0
+
     def _bool_field(self, raw: str) -> bool:
         """Converte texto boleano do jogo em True/False."""
         return (raw or "").lower().strip() not in ("0", "false", "no", "none", "", "nein", "non")
@@ -209,8 +214,8 @@ class WoFFXMLParser:
         m.altitude      = self._find(elem, "Altitude","Height","MaxAltitude","Hoehe") or ""
         m.sector        = self._find(elem, "Sector","Area","Zone","Location","Abschnitt") or ""
         m.weather       = self._find(elem, "Weather","Conditions","Wetter") or ""
-        m.enemyContacts = self._find(elem, "EnemyContacts","Contacts","Encounters","Feindkontakte") or "0"
-        m.claimsCount   = self._find(elem, "Claims","Victories","kills","KillClaims","Abschuesse") or "0"
+        m.enemyContacts = self._int_field(self._find(elem, "EnemyContacts","Contacts","Encounters","Feindkontakte"))
+        m.claimsCount   = self._int_field(self._find(elem, "Claims","Victories","kills","KillClaims","Abschuesse"))
         m.notes         = self._find(elem, "Notes","Comment","Remarks","Bemerkung") or ""
 
         raw_result      = self._find(elem, "Result","Outcome","MissionResult","Ergebnis") or ""

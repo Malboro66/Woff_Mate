@@ -70,7 +70,7 @@ class RPGSystem:
         morale = 75
         
         for m in missions[:10]:
-            if m.get("claimsCount", "0") != "0":
+            if m.get("claimsCount", 0) not in (0, "0", ""):
                 morale += 5
             if m.get("woundsReceived", False):
                 morale -= 10
@@ -97,7 +97,7 @@ class RPGSystem:
         
         for m in missions[:5]:
             try:
-                contacts = int(m.get("enemyContacts", "0"))
+                contacts = int(m.get("enemyContacts", 0) or 0)
                 stress += contacts * 4
                 
                 result = str(m.get("result", "")).lower()

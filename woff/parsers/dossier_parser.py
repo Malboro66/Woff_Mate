@@ -114,6 +114,10 @@ class WoFFDossierParser:
             
             def safe_get(idx):
                 return player_data[idx] if len(player_data) > idx and player_data[idx] else ""
+
+            def safe_int(idx):
+                value = safe_get(idx)
+                return int(value) if value.isdigit() else 0
             
             # 1. Índices fixos para estatísticas (confirmados no Java)
             self.pilot.fName = safe_get(4)
@@ -124,12 +128,12 @@ class WoFFDossierParser:
             self.pilot.aircraft = safe_get(84)
             self.pilot.aerodrome = safe_get(88)
             self.pilot.sector = safe_get(89)
-            self.pilot.missions = safe_get(46) if safe_get(46) else "0"
-            self.pilot.claimsCount = safe_get(16) if safe_get(16) else "0"
-            self.pilot.killsCount = safe_get(17) if safe_get(17) else "0"
-            self.pilot.flminutes = safe_get(11) if safe_get(11) else "0"
-            self.pilot.skill = safe_get(41) if safe_get(41) else "0"
-            self.pilot.reputation = safe_get(52) if safe_get(52) else "0"
+            self.pilot.missions = safe_int(46)
+            self.pilot.claimsCount = safe_int(16)
+            self.pilot.killsCount = safe_int(17)
+            self.pilot.flminutes = safe_int(11)
+            self.pilot.skill = safe_int(41)
+            self.pilot.reputation = safe_int(52)
             self.pilot.birthPlace = safe_get(92)
             
             # Extração do ID da Foto centralizada (Índice 100)
@@ -195,8 +199,8 @@ class WoFFDossierParser:
                         w.rank = parts[0]
                         w.fName = parts[1]
                         w.sName = parts[2]
-                        w.skill = parts[3] if len(parts) > 3 else "0"
-                        w.morale = parts[4] if len(parts) > 4 else "0"
+                        w.skill = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
+                        w.morale = int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0
                         w.status = parts[5] if len(parts) > 5 else "Active"
                         
                         for part in parts:
@@ -205,7 +209,7 @@ class WoFFDossierParser:
                                 break
                         
                         if len(parts) > 12 and parts[12].isdigit():
-                            w.flminutes = parts[12]
+                            w.flminutes = int(parts[12])
                             
                         self.wingmen.append(w)
 

@@ -29,12 +29,17 @@ log = logging.getLogger("WoFFWatch")
 ALLOWED_MIGRATIONS: Dict[str, Dict[str, str]] = {
     "pilots": {
         "fName": "TEXT", "sName": "TEXT", "photo": "TEXT", "birthDate": "TEXT",
-        "birthPlace": "TEXT", "missions": "TEXT", "flminutes": "TEXT",
-        "claimsCount": "TEXT", "killsCount": "TEXT", "skill": "TEXT", "reputation": "TEXT",
+        "birthPlace": "TEXT", "missions": "INTEGER", "flminutes": "INTEGER",
+        "claimsCount": "INTEGER", "killsCount": "INTEGER", "skill": "INTEGER", "reputation": "INTEGER",
         "enlisted": "TEXT"
     },
     "missions": {
-        "time": "TEXT", "squadron": "TEXT"
+        "time": "TEXT", "squadron": "TEXT", "enemyContacts": "INTEGER",
+        "claimsCount": "INTEGER"
+    },
+    "squad_members": {
+        "skill": "INTEGER", "morale": "INTEGER", "missions": "INTEGER",
+        "flminutes": "INTEGER"
     },
     "victories": {
         "sector": "TEXT", "aircraft": "TEXT"
@@ -118,12 +123,12 @@ class DatabaseManager:
                     photo TEXT,
                     birthDate TEXT,
                     birthPlace TEXT,
-                    missions TEXT,
-                    flminutes TEXT,
-                    claimsCount TEXT,
-                    killsCount TEXT,
-                    skill TEXT,
-                    reputation TEXT,
+                    missions INTEGER,
+                    flminutes INTEGER,
+                    claimsCount INTEGER,
+                    killsCount INTEGER,
+                    skill INTEGER,
+                    reputation INTEGER,
                     source_file TEXT,
                     last_updated TEXT
                 )
@@ -142,8 +147,8 @@ class DatabaseManager:
                     sector TEXT,
                     squadron TEXT,
                     weather TEXT,
-                    enemyContacts TEXT,
-                    claimsCount TEXT,
+                    enemyContacts INTEGER,
+                    claimsCount INTEGER,
                     result TEXT,
                     damageReceived INTEGER,
                     woundsReceived INTEGER,
@@ -186,8 +191,8 @@ class DatabaseManager:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS squad_members (
                     id TEXT PRIMARY KEY, pilotId TEXT, rank TEXT, fName TEXT,
-                    sName TEXT, skill TEXT, morale TEXT, status TEXT, missions TEXT,
-                    flminutes TEXT, bio TEXT,
+                    sName TEXT, skill INTEGER, morale INTEGER, status TEXT, missions INTEGER,
+                    flminutes INTEGER, bio TEXT,
                     UNIQUE(pilotId, fName, sName)
                 )
             """)
@@ -269,6 +274,7 @@ class DatabaseManager:
             conn = self._get_conn()
             try:
                 cursor = conn.cursor()
+                cursor.execute("PRAGMA foreign_keys=OFF")
 
                 def column_exists(table: str, col: str) -> bool:
                     cursor.execute(f"PRAGMA table_info({table})")
@@ -285,6 +291,9 @@ class DatabaseManager:
                                 f"  [Migração] Coluna '{col}' adicionada a '{table}'."
                             )
 
+
+                self._migrate_numeric_column_types(cursor)
+
                 # Migração do índice único do diário (para bases antigas)
                 cursor.execute("""
                     CREATE UNIQUE INDEX IF NOT EXISTS idx_diary_unique_mission
@@ -297,10 +306,87 @@ class DatabaseManager:
                     (self.schema_version,)
                 )
                 conn.commit()
+                cursor.execute("PRAGMA foreign_keys=ON")
             except Exception:
                 log.exception("Erro na migração de schema")
                 conn.rollback()
+                cursor.execute("PRAGMA foreign_keys=ON")
                 raise
+
+    def _migrate_numeric_column_types(self, cursor: sqlite3.Cursor) -> None:
+        """Rebuild old tables whose numeric columns were created as TEXT."""
+        numeric_columns = {
+            "pilots": {"missions", "flminutes", "claimsCount", "killsCount", "skill", "reputation"},
+            "missions": {"enemyContacts", "claimsCount"},
+            "squad_members": {"skill", "morale", "missions", "flminutes"},
+        }
+
+        for table, columns in numeric_columns.items():
+            cursor.execute(f"PRAGMA table_info({table})")
+            info = cursor.fetchall()
+            if not info:
+                continue
+            text_numeric = [row[1] for row in info if row[1] in columns and row[2].upper() != "INTEGER"]
+            if not text_numeric:
+                continue
+
+            old_table = f"{table}__text_backup"
+            cursor.execute(f"DROP TABLE IF EXISTS {old_table}")
+            cursor.execute(f"ALTER TABLE {table} RENAME TO {old_table}")
+            self._create_table(cursor, table)
+
+            old_cols = [row[1] for row in info]
+            cursor.execute(f"PRAGMA table_info({table})")
+            new_cols = [row[1] for row in cursor.fetchall()]
+            common_cols = [col for col in new_cols if col in old_cols]
+            select_exprs = [
+                f"CAST(NULLIF({col}, '') AS INTEGER) AS {col}" if col in columns else col
+                for col in common_cols
+            ]
+            cursor.execute(
+                f"INSERT INTO {table} ({', '.join(common_cols)}) "
+                f"SELECT {', '.join(select_exprs)} FROM {old_table}"
+            )
+            cursor.execute(f"DROP TABLE {old_table}")
+            log.info(
+                f"  [Migração] Tabela '{table}' convertida para colunas numéricas INTEGER: "
+                f"{', '.join(text_numeric)}."
+            )
+
+    def _create_table(self, cursor: sqlite3.Cursor, table: str) -> None:
+        statements = {
+            "pilots": """
+                CREATE TABLE pilots (
+                    id TEXT PRIMARY KEY, name TEXT UNIQUE, fName TEXT, sName TEXT,
+                    nation TEXT, rank TEXT, squadron TEXT, aircraft TEXT,
+                    aerodrome TEXT, sector TEXT, startDate TEXT, enlisted TEXT,
+                    status TEXT, notes TEXT, photo TEXT, birthDate TEXT,
+                    birthPlace TEXT, missions INTEGER, flminutes INTEGER,
+                    claimsCount INTEGER, killsCount INTEGER, skill INTEGER,
+                    reputation INTEGER, source_file TEXT, last_updated TEXT
+                )
+            """,
+            "missions": """
+                CREATE TABLE missions (
+                    id TEXT PRIMARY KEY, pilotId TEXT, date TEXT, time TEXT,
+                    missionType TEXT, aircraft TEXT, duration TEXT, altitude TEXT,
+                    sector TEXT, squadron TEXT, weather TEXT, enemyContacts INTEGER,
+                    claimsCount INTEGER, result TEXT, damageReceived INTEGER,
+                    woundsReceived INTEGER, notes TEXT, source_file TEXT,
+                    UNIQUE(pilotId, date, time, missionType, aircraft),
+                    FOREIGN KEY(pilotId) REFERENCES pilots(id)
+                )
+            """,
+            "squad_members": """
+                CREATE TABLE squad_members (
+                    id TEXT PRIMARY KEY, pilotId TEXT, rank TEXT, fName TEXT,
+                    sName TEXT, skill INTEGER, morale INTEGER, status TEXT,
+                    missions INTEGER, flminutes INTEGER, bio TEXT,
+                    UNIQUE(pilotId, fName, sName)
+                )
+            """,
+        }
+        cursor.execute(statements[table])
 
     def get_pilot_state(self, pilot_name: str) -> Tuple[Optional[str], Optional[str]]:
         return self._pilots.get_pilot_state(pilot_name)

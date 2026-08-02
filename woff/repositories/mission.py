@@ -47,7 +47,7 @@ class MissionRepository(BaseRepository):
                 m.id, m.pilotId, m.date, m.time, m.missionType, m.aircraft,
                 m.duration, m.altitude, m.sector, m.squadron, m.weather,
                 m.enemyContacts, m.claimsCount, m.result,
-                int(m.damageReceived), int(m.woundsReceived), m.notes,
+                m.damageReceived, m.woundsReceived, m.notes,
                 m.source_file
             ))
             added_m += cursor.rowcount
@@ -63,7 +63,7 @@ class MissionRepository(BaseRepository):
                 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 v.id, v.pilotId, v.date, v.time, v.missionId, v.enemyType,
-                v.victoryType, v.location, int(v.confirmed), v.witnesses,
+                v.victoryType, v.location, v.confirmed, v.witnesses,
                 v.notes, v.sector, v.aircraft, v.source_file
             ))
             added_v += cursor.rowcount

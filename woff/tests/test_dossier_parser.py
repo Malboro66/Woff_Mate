@@ -104,7 +104,7 @@ class TestWoFFDossierParser(unittest.TestCase):
         self.assertEqual(self.parser.pilot.name, "James Hartley")
         self.assertEqual(self.parser.pilot.nation, "French")
         self.assertEqual(self.parser.pilot.photo, "1")
-        self.assertEqual(self.parser.pilot.killsCount, "3")
+        self.assertEqual(self.parser.pilot.killsCount, 3)
 
     def test_parse_dossier_wrong_filename(self):
         """Testa que chave XOR errada não produz o piloto correto."""
