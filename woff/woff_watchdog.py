@@ -61,7 +61,7 @@ except Exception as e:
 
 try:
     from config import WatchdogConfig, load_config
-    from handler import WoFFEventHandler
+    from handler import WoFFEventHandler, get_latest_mission_id
     from database import DatabaseManager
     from discovery import DiscoveryLogger
     from medal_cataloger import catalog_medals
@@ -263,9 +263,10 @@ class WoFFWatchdog:
                                         parser.pilot.name,
                                         source_file=parser.pilot.source_file,
                                     )
-                                    if real_pilot_id:
+                                    latest_mission_id = get_latest_mission_id(parser)
+                                    if real_pilot_id and latest_mission_id:
                                         self.campaign_engine.process_mission_end(
-                                            real_pilot_id, parser.missions[0].id
+                                            real_pilot_id, latest_mission_id
                                         )
                                     else:
                                         log.warning(

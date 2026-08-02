@@ -57,21 +57,33 @@ class DatabaseManager:
             self._migrate_schema()
 
     # ── Thread-Local Connection Pooling ──
+    def _open_conn(self) -> sqlite3.Connection:
+        """Cria uma conexão SQLite com todas as opções exigidas pelo gestor."""
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA foreign_keys=ON;")
+        return conn
+
     def _get_conn(self) -> sqlite3.Connection:
-        """Devolve a conexão da thread atual, criando-a se necessário."""
+        """Devolve a conexão da thread atual, recriando-a se tiver sido fechada."""
         if not hasattr(self._local, 'conn') or self._local.conn is None:
-            self._local.conn = sqlite3.connect(
-                self.db_path, check_same_thread=False
-            )
-            self._local.conn.execute("PRAGMA journal_mode=WAL;")
-            self._local.conn.execute("PRAGMA foreign_keys=ON;")
+            self._local.conn = self._open_conn()
+            return self._local.conn
+
+        try:
+            self._local.conn.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            self._local.conn = self._open_conn()
+
         return self._local.conn
 
     def close(self) -> None:
         """Fecha a conexão da thread atual. Chamar no shutdown."""
         if hasattr(self._local, 'conn') and self._local.conn:
-            self._local.conn.close()
-            self._local.conn = None
+            try:
+                self._local.conn.close()
+            finally:
+                self._local.conn = None
 
     def _init_db(self):
         """Cria as tabelas se não existirem."""

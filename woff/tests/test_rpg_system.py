@@ -69,6 +69,20 @@ class TestRPGSystem(unittest.TestCase):
         missions = [{"claimsCount": "0", "woundsReceived": False, "damageReceived": False}]
         # 75 (base) - 20 (status hospital) = 55
         self.assertEqual(self.rpg.calculate_morale(missions, "Wounded"), 55)
+
+    def test_morale_uses_ten_most_recent_missions_from_descending_history(self):
+        """Garante que a moral ignora a 11ª missão, que é a mais antiga no histórico."""
+        missions = [
+            {"claimsCount": "1", "woundsReceived": False, "damageReceived": False}
+            for _ in range(10)
+        ]
+        missions.append(
+            {"claimsCount": "0", "woundsReceived": True, "damageReceived": False}
+        )
+
+        # 75 base + 10 vitórias recentes * 5. A penalização da 11ª missão
+        # antiga não deve ser considerada.
+        self.assertEqual(self.rpg.calculate_morale(missions, "Active"), 100)
     
     def test_stress_combat_contacts(self):
         """Testa cálculo de stress baseado em contactos inimigos."""
