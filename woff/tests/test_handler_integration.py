@@ -56,11 +56,17 @@ class TestHandlerIntegration(unittest.TestCase):
             db_manager=self.db,
             campaign_engine=self.engine
         )
+        self._handler_pool = self.handler._pool
     
     def tearDown(self):
-        # Limpar pasta temporária e DB
-        if os.path.exists(self.tmp_dir):
-            shutil.rmtree(self.tmp_dir)
+        # Restaurar e encerrar o pool real antes de libertar o banco no Windows.
+        self.handler._pool = self._handler_pool
+        try:
+            self.handler.shutdown()
+        finally:
+            self.db.close()
+            if os.path.exists(self.tmp_dir):
+                shutil.rmtree(self.tmp_dir)
     
     def test_file_modified_event(self):
         """Simula evento de modificação e verifica processamento assíncrono determinístico."""
