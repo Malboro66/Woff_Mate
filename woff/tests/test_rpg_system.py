@@ -124,7 +124,9 @@ class TestRPGSystem(unittest.TestCase):
         self.assertEqual(results(42), results(42))
 
     def test_personality_uses_injected_generator(self):
-        rng = random.Random(7)
+        rng = Mock()
+        rng.randint.side_effect = [61, 29, 60, 26, 39, 83]
+        rng.choice.return_value = "Disciplined"
 
         personality = RPGSystem(rng=rng).generate_personality()
 
@@ -140,6 +142,18 @@ class TestRPGSystem(unittest.TestCase):
                 "personality_trait": "Disciplined",
             },
         )
+
+        rng.choice.assert_called_once_with(["Disciplined"])
+
+    def test_different_seeds_produce_different_personalities(self):
+        first = RPGSystem(seed=1).generate_personality()
+        second = RPGSystem(seed=2).generate_personality()
+
+        self.assertNotEqual(first, second)
+
+    def test_rng_and_seed_are_mutually_exclusive(self):
+        with self.assertRaisesRegex(ValueError, "Use rng or seed, not both"):
+            RPGSystem(rng=Mock(), seed=1)
 
     def test_default_uses_production_random_generator(self):
         self.assertIs(RPGSystem().rng, random)

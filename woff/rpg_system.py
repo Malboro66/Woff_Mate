@@ -11,6 +11,14 @@ from typing import List, Dict, Any
 import random
 
 class RPGSystem:
+    """Calcula o estado RPG usando uma fonte de aleatoriedade configurável.
+
+    ``rng`` deve fornecer os métodos ``random()``, ``randint()`` e ``choice()``.
+    ``seed`` cria uma instância isolada de :class:`random.Random`. Se nenhum dos
+    dois for informado, o módulo global :mod:`random` permanece como o padrão
+    de produção. Informar ``rng`` e ``seed`` simultaneamente gera ``ValueError``.
+    """
+
     def __init__(self, rng=None, seed=None):
         if rng is not None and seed is not None:
             raise ValueError("Use rng or seed, not both")
