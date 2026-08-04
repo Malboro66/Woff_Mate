@@ -95,7 +95,10 @@ def import_diary_from_file(conn, filepath: str):
 def open_editor(filepath: str):
     system = platform.system()
     if system == "Windows":
-        os.startfile(filepath)
+        startfile = getattr(os, "startfile", None)
+        if not callable(startfile):
+            raise RuntimeError("os.startfile não está disponível nesta instalação do Windows")
+        startfile(filepath)
     elif system == "Darwin": # macOS
         subprocess.call(["open", filepath])
     else: # Linux

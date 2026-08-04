@@ -310,7 +310,7 @@ class DatabaseManager:
             except Exception:
                 log.exception("Erro na migração de schema")
                 conn.rollback()
-                cursor.execute("PRAGMA foreign_keys=ON")
+                conn.execute("PRAGMA foreign_keys=ON")
                 raise
 
     def _migrate_numeric_column_types(self, cursor: sqlite3.Cursor) -> None:

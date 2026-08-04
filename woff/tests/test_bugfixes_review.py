@@ -204,6 +204,7 @@ class TestNewPilotWelcomeMessage(unittest.TestCase):
             new_status="Active", old_status=None, new_rank="Lieutenant", old_rank=None
         )
         self.assertIsNotNone(narrative)
+        assert narrative is not None
         self.assertIn("Cheguei à esquadrilha", narrative)
 
     def test_empty_string_old_status_incorrectly_triggers_promotion_text(self):
@@ -213,6 +214,7 @@ class TestNewPilotWelcomeMessage(unittest.TestCase):
             new_status="Active", old_status="", new_rank="Lieutenant", old_rank=""
         )
         self.assertIsNotNone(narrative)
+        assert narrative is not None
         self.assertIn("Fui promovido", narrative)
         self.assertNotIn("Cheguei à esquadrilha", narrative)
 
