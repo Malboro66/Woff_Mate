@@ -11,7 +11,14 @@ from typing import List, Dict, Any
 import random
 
 class RPGSystem:
-    def __init__(self):
+    def __init__(self, rng=None, seed=None):
+        if rng is not None and seed is not None:
+            raise ValueError("Use rng or seed, not both")
+        self.rng = (
+            rng
+            if rng is not None
+            else (random.Random(seed) if seed is not None else random)
+        )
         self.MAX_FATIGUE = 100
         self.MAX_MORALE = 100
         self.MAX_STRESS = 100
@@ -52,7 +59,7 @@ class RPGSystem:
 
         # Variável Estocástica: Eventos Raros
         # Ex: "Adrenalina do Combate" reduz a perceived fatigue, ou "Insónia" aumenta.
-        event_roll = random.random()
+        event_roll = self.rng.random()
         if event_roll < 0.1:  # 10% de chance de evento aleatório
             if event_roll < 0.05:
                 fatigue -= 10  # Sorte, descansou bem apesar de tudo
@@ -81,9 +88,9 @@ class RPGSystem:
             morale -= 20
             
         # Variável Estocástica: Notícias de casa, clima de humor na esquadrilha
-        event_roll = random.random()
+        event_roll = self.rng.random()
         if event_roll < 0.15:  # 15% de chance de flutuação de humor
-            morale += random.randint(-10, 10)
+            morale += self.rng.randint(-10, 10)
             
         return max(0, min(morale, self.MAX_MORALE))
 
@@ -107,7 +114,7 @@ class RPGSystem:
                 continue
 
         # Variável Estocástica: Traumas persistentes ou alívio
-        event_roll = random.random()
+        event_roll = self.rng.random()
         if event_roll < 0.1:  # 10% de chance de flashback traumático
             stress += 15
             
@@ -116,12 +123,12 @@ class RPGSystem:
     def generate_personality(self) -> Dict[str, Any]:
         """Gera uma personalidade única para um Wingman AI baseada no modelo 3P."""
         attributes = {
-            "aerial_skill": random.randint(20, 95),
-            "aggression": random.randint(10, 90),
-            "charisma": random.randint(10, 90),
-            "intelligence": random.randint(20, 95),
-            "physicality": random.randint(30, 95),
-            "professionalism": random.randint(15, 95)
+            "aerial_skill": self.rng.randint(20, 95),
+            "aggression": self.rng.randint(10, 90),
+            "charisma": self.rng.randint(10, 90),
+            "intelligence": self.rng.randint(20, 95),
+            "physicality": self.rng.randint(30, 95),
+            "professionalism": self.rng.randint(15, 95)
         }
         
         traits = []
@@ -132,7 +139,7 @@ class RPGSystem:
         if attributes["charisma"] > 80: traits.append("Inspiring")
         if attributes["intelligence"] > 80: traits.append("Analytical")
         
-        trait = random.choice(traits) if traits else "Standard"
+        trait = self.rng.choice(traits) if traits else "Standard"
         
         return {
             **attributes,

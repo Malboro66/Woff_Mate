@@ -1,6 +1,6 @@
 import unittest
-import os
-from unittest.mock import patch
+import random
+from unittest.mock import Mock
 
 
 from ..rpg_system import RPGSystem
@@ -8,14 +8,9 @@ from ..rpg_system import RPGSystem
 class TestRPGSystem(unittest.TestCase):
     
     def setUp(self):
-        self.rpg = RPGSystem()
-        # Garante que nenhum evento estocástico (aleatório) invalida os testes
-        # 1.0 desativa as variações de humor/ferimentos
-        self.mock_random = patch('woff.rpg_system.random').start()
-        self.mock_random.random.return_value = 1.0
-    
-    def tearDown(self):
-        patch.stopall()
+        self.rng = Mock()
+        self.rng.random.return_value = 1.0
+        self.rpg = RPGSystem(rng=self.rng)
 
     def test_fatigue_single_mission(self):
         """Testa fadiga de uma missão normal nos últimos 3 dias."""
@@ -92,6 +87,62 @@ class TestRPGSystem(unittest.TestCase):
         missions = [{"enemyContacts": "0", "result": "Forced Landing"}]
         # 0 contactos + 20 (forçada) = 20
         self.assertEqual(self.rpg.calculate_stress(missions), 20)
+
+    def test_fatigue_random_events_are_controllable(self):
+        missions = [{"date": "1917-04-06"}]
+        rested = Mock(random=Mock(return_value=0.04))
+        insomnia = Mock(random=Mock(return_value=0.08))
+
+        self.assertEqual(RPGSystem(rng=rested).calculate_fatigue(missions), 5)
+        self.assertEqual(RPGSystem(rng=insomnia).calculate_fatigue(missions), 30)
+
+    def test_morale_random_event_is_controllable(self):
+        rng = Mock()
+        rng.random.return_value = 0.10
+        rng.randint.return_value = -7
+
+        self.assertEqual(RPGSystem(rng=rng).calculate_morale([], "Active"), 68)
+        rng.randint.assert_called_once_with(-10, 10)
+
+    def test_stress_random_event_is_controllable(self):
+        rng = Mock(random=Mock(return_value=0.09))
+
+        self.assertEqual(RPGSystem(rng=rng).calculate_stress([]), 15)
+
+    def test_same_seed_produces_same_rpg_results_and_personality(self):
+        missions = [{"date": "1917-04-06", "claimsCount": 1, "enemyContacts": 3}]
+
+        def results(seed):
+            rpg = RPGSystem(seed=seed)
+            return (
+                rpg.calculate_fatigue(missions),
+                rpg.calculate_morale(missions, "Active"),
+                rpg.calculate_stress(missions),
+                rpg.generate_personality(),
+            )
+
+        self.assertEqual(results(42), results(42))
+
+    def test_personality_uses_injected_generator(self):
+        rng = random.Random(7)
+
+        personality = RPGSystem(rng=rng).generate_personality()
+
+        self.assertEqual(
+            personality,
+            {
+                "aerial_skill": 61,
+                "aggression": 29,
+                "charisma": 60,
+                "intelligence": 26,
+                "physicality": 39,
+                "professionalism": 83,
+                "personality_trait": "Disciplined",
+            },
+        )
+
+    def test_default_uses_production_random_generator(self):
+        self.assertIs(RPGSystem().rng, random)
 
 if __name__ == "__main__":
     unittest.main()
