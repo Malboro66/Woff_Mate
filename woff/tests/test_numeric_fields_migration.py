@@ -16,7 +16,7 @@ def test_numeric_model_fields_support_arithmetic_without_casting():
 
 
 def test_rpg_accepts_integer_mission_counts_without_casting():
-    rpg = RPGSystem()
+    rpg = RPGSystem(seed=0)
     missions = [{"claimsCount": 1, "enemyContacts": 3, "woundsReceived": False, "damageReceived": False, "result": ""}]
 
     assert rpg.calculate_morale(missions, "Active") == 80

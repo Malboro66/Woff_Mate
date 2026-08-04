@@ -1,7 +1,7 @@
 import unittest
 import os
 import tempfile
-from unittest.mock import patch, mock_open
+from unittest.mock import Mock, patch, mock_open
 
 
 from ..parsers.pilot_data_parser import WoFFPilotDataParser
@@ -97,10 +97,9 @@ class TestWoFFPilotDataParser(unittest.TestCase):
             self.assertTrue(parser.parse("Pilot1Log.txt"))
 
         mission = parser.missions[0]
-        rpg = RPGSystem()
-        with patch("woff.rpg_system.random") as mock_random:
-            mock_random.random.return_value = 1.0
-            fatigue = rpg.calculate_fatigue([mission.__dict__])
+        rng = Mock()
+        rng.random.return_value = 1.0
+        fatigue = RPGSystem(rng=rng).calculate_fatigue([mission.__dict__])
 
         self.assertEqual(fatigue, 30)
 
