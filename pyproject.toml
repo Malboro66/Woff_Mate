@@ -20,3 +20,4 @@ woff-report = "woff.gerar_relatorio:main"
 
 [tool.setuptools.packages.find]
 include = ["woff*"]
+exclude = ["woff.tests", "woff.tests.*"]

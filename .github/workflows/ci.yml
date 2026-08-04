@@ -26,8 +26,27 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install .
       - run: python -m pip install pytest psutil
+      - run: python -m pip install build
+      - name: Build and inspect wheel
+        run: |
+          python -m build --wheel
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheel = next(Path("dist").glob("*.whl"))
+          with ZipFile(wheel) as archive:
+              packaged = archive.namelist()
+          forbidden = [
+              name for name in packaged
+              if name.endswith("conftest.py") or name.startswith("woff/tests/")
+          ]
+          if forbidden:
+              raise SystemExit(f"Test files found in wheel: {forbidden}")
+          PY
       - name: Import every installed module
         shell: python {0}
+        working-directory: ${{ runner.temp }}
         run: |
           import importlib
           import pkgutil
@@ -55,7 +74,7 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install .
-      - run: python -m pip install pyright
+      - run: python -m pip install pyright pytest psutil
       - run: pyright
 
   windows-smoke:
@@ -72,6 +91,7 @@ jobs:
       - run: python -m pip install pyinstaller
       - name: Import every installed module
         shell: python {0}
+        working-directory: ${{ runner.temp }}
         run: |
           import importlib
           import pkgutil
