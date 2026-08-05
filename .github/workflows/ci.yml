@@ -107,6 +107,8 @@ jobs:
           Copy-Item config.example.json "$env:RUNNER_TEMP\woff-report-smoke\config.json"
           Push-Location "$env:RUNNER_TEMP\woff-report-smoke"
           try { woff-report } finally { Pop-Location }
+      - name: Validate PyInstaller launcher
+        run: python .\woff_watchdog_entry.py --help
       - name: Build Windows executable
         run: pyinstaller --clean --noconfirm build.spec
       - name: Smoke test packaged executable
