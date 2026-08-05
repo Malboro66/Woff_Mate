@@ -7,7 +7,7 @@ block_cipher = None
 # PyInstaller's path and refer to internal modules by their fully-qualified
 # package names so no runtime sys.path manipulation is required.
 a = Analysis(
-    ['woff/woff_watchdog.py'],
+    ['woff_watchdog_entry.py'],
     pathex=['.'],
     binaries=[],
     datas=[],

@@ -1,5 +1,7 @@
 # ✈️ WoFF BHaH II Watchdog
 
+[![CI](https://github.com/Malboro66/Woff_Mate/actions/workflows/ci.yml/badge.svg)](https://github.com/Malboro66/Woff_Mate/actions/workflows/ci.yml)
+
 **WoFF BHaH II Watchdog** é uma aplicação companion em segundo plano para o simulador de voo *Wings over Flanders Fields: Between Heaven and Hell II* (WOFF BHaH II).
 
 A aplicação monitoriza em tempo real as pastas de campanha do jogo, extrai dados de ficheiros de texto e binários ofuscados, e alimenta uma base de dados SQLite local. Além da extração de dados, o projeto introduz uma camada de RPG (Fadiga, Moral, Stress) e um gerador de Diário de Bordo narrativo, preparando o terreno para uma futura interface gráfica (WoFFBase UI).

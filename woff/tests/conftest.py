@@ -1,13 +1,13 @@
-# woff/conftest.py
+# woff/tests/conftest.py
 import os
 
 
 import pytest
 import tempfile
 
-from .database import DatabaseManager
-from .campaign_engine import CampaignEngine
-from .models import WoFFPilot, WoFFMission
+from ..database import DatabaseManager
+from ..campaign_engine import CampaignEngine
+from ..models import WoFFPilot, WoFFMission
 
 @pytest.fixture
 def db_manager():

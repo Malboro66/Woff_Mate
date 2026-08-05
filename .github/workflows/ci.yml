@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install .
+      - run: python -m pip install pytest psutil
+      - run: python -m pip install build
+      - name: Build and inspect wheel
+        run: |
+          python -m build --wheel
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheel = next(Path("dist").glob("*.whl"))
+          with ZipFile(wheel) as archive:
+              packaged = archive.namelist()
+          forbidden = [
+              name for name in packaged
+              if name.endswith("conftest.py") or name.startswith("woff/tests/")
+          ]
+          if forbidden:
+              raise SystemExit(f"Test files found in wheel: {forbidden}")
+          PY
+      - name: Import every installed module
+        shell: python {0}
+        working-directory: ${{ runner.temp }}
+        run: |
+          import importlib
+          import pkgutil
+          import woff
+
+          for module in pkgutil.walk_packages(woff.__path__, woff.__name__ + "."):
+              importlib.import_module(module.name)
+      - name: Exercise installed entry points safely
+        shell: bash
+        run: |
+          woff-watchdog --help
+          smoke_dir="$(mktemp -d)"
+          cp config.example.json "$smoke_dir/config.json"
+          (cd "$smoke_dir" && woff-report)
+      - run: python -m pytest -q
+
+  pyright:
+    name: Pyright
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install .
+      - run: python -m pip install pyright pytest psutil
+      - run: pyright
+
+  windows-smoke:
+    name: Windows smoke test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install .
+      - run: python -m pip install pyinstaller
+      - name: Import every installed module
+        shell: python {0}
+        working-directory: ${{ runner.temp }}
+        run: |
+          import importlib
+          import pkgutil
+          import woff
+
+          for module in pkgutil.walk_packages(woff.__path__, woff.__name__ + "."):
+              importlib.import_module(module.name)
+      - name: Exercise installed entry points safely
+        shell: pwsh
+        run: |
+          woff-watchdog --help
+          New-Item -ItemType Directory -Path "$env:RUNNER_TEMP\woff-report-smoke"
+          Copy-Item config.example.json "$env:RUNNER_TEMP\woff-report-smoke\config.json"
+          Push-Location "$env:RUNNER_TEMP\woff-report-smoke"
+          try { woff-report } finally { Pop-Location }
+      - name: Validate PyInstaller launcher
+        run: python .\woff_watchdog_entry.py --help
+      - name: Build Windows executable
+        run: pyinstaller --clean --noconfirm build.spec
+      - name: Smoke test packaged executable
+        run: .\dist\WoFFWatchdog\WoFFWatchdog.exe --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WoFFWatchdog-windows-python-3.10
+          path: dist/WoFFWatchdog/
+          if-no-files-found: error
+          retention-days: 3

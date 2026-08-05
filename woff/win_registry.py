@@ -9,13 +9,23 @@ WoFF BHaH II está instalado.
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional, Protocol, Tuple, cast
 
 log = logging.getLogger("WoFFWatch")
 
 # Chave do registo usada pelo instalador do WoFF (OBD Software)
 WOFF_REG_KEY = r"Software\VB and VBA Program Settings\OFFManager4\Settings"
 WOFF_REG_VALUE = "CFS3Path"
+
+
+class _WinReg(Protocol):
+    """Subset of winreg used here, also type-checkable on non-Windows hosts."""
+
+    HKEY_CURRENT_USER: int
+
+    def OpenKey(self, key: int, sub_key: str) -> Any: ...
+    def QueryValueEx(self, key: Any, value_name: str) -> Tuple[Any, int]: ...
+    def CloseKey(self, key: Any) -> None: ...
 
 def get_woff_install_path() -> Optional[str]:
     """
@@ -28,11 +38,13 @@ def get_woff_install_path() -> Optional[str]:
         log.warning("Módulo 'winreg' não disponível (não está a correr em Windows).")
         return None
 
+    registry = cast(_WinReg, winreg)
+
     try:
         # HKEY_CURRENT_USER = -2147483647 ou winreg.HKEY_CURRENT_USER
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, WOFF_REG_KEY)
-        path, _ = winreg.QueryValueEx(key, WOFF_REG_VALUE)
-        winreg.CloseKey(key)
+        key = registry.OpenKey(registry.HKEY_CURRENT_USER, WOFF_REG_KEY)
+        path, _ = registry.QueryValueEx(key, WOFF_REG_VALUE)
+        registry.CloseKey(key)
         
         if path:
             log.info(f"Caminho do WoFF encontrado no Registo: {path}")

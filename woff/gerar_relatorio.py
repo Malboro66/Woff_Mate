@@ -111,7 +111,8 @@ def main():
                 if m:
                     rep.write(f"  -> Data: {m.date}\n")
                     rep.write(f"  -> Aeronave: {m.aircraft}\n")
-                    rep.write(f"  -> Esquadrão: {parser.pilot.squadron}\n")
+                    if parser.pilot:
+                        rep.write(f"  -> Esquadrão: {parser.pilot.squadron}\n")
                     rep.write(f"  -> Waypoints Extraídos: {len(parser.flight_plan)}\n")
                     for wp in parser.flight_plan[:3]: # Mostra primeiros 3
                         rep.write(f"     -> {wp['type']} (Lat: {wp['lat']}, Lon: {wp['lon']})\n")
